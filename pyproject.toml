@@ -1,10 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "deltalake-lakehouse"
 version = "0.1.0"
 description = "Postgres -> Debezium -> Kafka -> Spark Structured Streaming -> Delta Lake medallion pipeline"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
+
+[project.scripts]
+lakehouse-pipeline = "lakehouse.jobs.pipeline:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lakehouse*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 testpaths = ["tests/unit"]
-markers = ["e2e: needs the running Docker stack and pipeline"]
+markers = [
+  "e2e: needs the running Docker stack and pipeline",
+  "failure: failure-injection tests; need the Docker stack, start their own pipeline",
+]

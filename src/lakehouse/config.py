@@ -3,6 +3,7 @@ the same code runs locally or on a cluster (e.g. LAKE_ROOT=s3://... or a
 Databricks Volume path)."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -14,6 +15,18 @@ TOPIC_PATTERN = os.environ.get("TOPIC_PATTERN", r"src\.public\..*")
 BRONZE_TRIGGER = os.environ.get("BRONZE_TRIGGER", "1 second")
 SILVER_TRIGGER = os.environ.get("SILVER_TRIGGER", "2 seconds")
 MAX_OFFSETS_PER_TRIGGER = int(os.environ.get("MAX_OFFSETS_PER_TRIGGER", "200000"))
+
+
+def kafka_options() -> dict[str, str]:
+    """Extra Kafka source options as JSON, e.g. for a managed Kafka with SASL:
+    KAFKA_OPTIONS_JSON='{"kafka.security.protocol": "SASL_SSL", ...}'."""
+    raw = os.environ.get("KAFKA_OPTIONS_JSON", "").strip()
+    if not raw:
+        return {}
+    opts = json.loads(raw)
+    if not isinstance(opts, dict):
+        raise ValueError("KAFKA_OPTIONS_JSON must be a JSON object")
+    return {str(k): str(v) for k, v in opts.items()}
 
 
 def lake_path(*parts: str) -> str:

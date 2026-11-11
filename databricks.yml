@@ -1,0 +1,68 @@
+# Databricks Asset Bundle: deploys the same streaming pipeline as a Databricks job.
+#
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev --var kafka_bootstrap=... --var lake_root=...
+#   databricks bundle run      -t dev lakehouse_pipeline
+#
+# The code is unchanged: it is built as a wheel and started through the
+# `lakehouse-pipeline` entry point. On Databricks Runtime, get_spark() reuses
+# the cluster session, which already has Delta Lake and the Kafka source.
+#
+# NOTE: written against the bundle schema, but not yet deployed to a workspace.
+# See databricks/README.md for what still has to be provided (Kafka reachable
+# from the workspace, a storage location, credentials).
+bundle:
+  name: deltalake-lakehouse
+
+variables:
+  kafka_bootstrap:
+    description: Kafka bootstrap servers reachable from the workspace (e.g. Confluent Cloud, MSK)
+  kafka_options_json:
+    description: Extra Kafka source options as JSON (SASL/SSL settings); reference secrets, never inline them
+    default: "{}"
+  lake_root:
+    description: Root for Delta tables and checkpoints, e.g. s3://my-bucket/lakehouse (a Unity Catalog external location)
+  node_type_id:
+    description: Worker/driver instance type
+    default: i3.xlarge
+  spark_version:
+    description: Databricks Runtime; 15.4 LTS = Spark 3.5, matching local pyspark 3.5.3
+    default: 15.4.x-scala2.12
+
+artifacts:
+  lakehouse_wheel:
+    type: whl
+    path: .
+    build: python -m pip wheel --no-deps -w dist .
+
+resources:
+  jobs:
+    lakehouse_pipeline:
+      name: deltalake-lakehouse-pipeline
+      # Continuous job: Databricks restarts the stream if it fails, so the
+      # in-process supervisor is switched off (PIPELINE_SUPERVISE=0).
+      continuous:
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: stream
+          python_wheel_task:
+            package_name: deltalake_lakehouse
+            entry_point: lakehouse-pipeline
+          libraries:
+            - whl: ./dist/*.whl
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: 1
+            data_security_mode: SINGLE_USER   # localCheckpoint() needs a dedicated (not shared/serverless) cluster
+            spark_env_vars:
+              LAKE_ROOT: ${var.lake_root}
+              KAFKA_BOOTSTRAP: ${var.kafka_bootstrap}
+              KAFKA_OPTIONS_JSON: ${var.kafka_options_json}
+              PIPELINE_SUPERVISE: "0"
+              SILVER_TRIGGER: "5 seconds"
+
+targets:
+  dev:
+    mode: development
+    default: true

@@ -20,6 +20,10 @@ def get_spark(app: str = "lakehouse", with_kafka: bool = False, master: str | No
     active = SparkSession.getActiveSession()
     if active is not None:
         return active
+    if os.environ.get("DATABRICKS_RUNTIME_VERSION"):
+        # Databricks Runtime ships Spark, Delta and the Kafka source already
+        # configured; only take the cluster's session.
+        return SparkSession.builder.getOrCreate()
 
     from delta import configure_spark_with_delta_pip
 

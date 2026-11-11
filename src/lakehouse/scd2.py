@@ -30,7 +30,7 @@ from __future__ import annotations
 from pyspark.sql import DataFrame, SparkSession, Window
 from pyspark.sql import functions as F
 
-from .delta_utils import ensure_table
+from .delta_utils import ensure_table, materialize
 from .tables import TableSpec
 
 VERSION_META = ["valid_from", "is_deleted", "_lsn"]
@@ -72,8 +72,8 @@ def apply_scd2(spark: SparkSession, typed_changes: DataFrame, path: str, spec: T
     # Materialise so the MERGE source is not re-derived from the table it is writing.
     # Re-aliasing gives the columns fresh identities; otherwise Delta cannot tell
     # target columns from source columns that were derived from the target.
-    history = history.localCheckpoint(eager=True)
-    history = history.select(*[F.col(c).alias(c) for c in history.columns])
+    materialized = materialize(history)
+    history = materialized.select(*[F.col(c).alias(c) for c in materialized.columns])
 
     (
         target.alias("t")
@@ -85,3 +85,4 @@ def apply_scd2(spark: SparkSession, typed_changes: DataFrame, path: str, spec: T
         .whenNotMatchedInsertAll()
         .execute()
     )
+    materialized.unpersist()

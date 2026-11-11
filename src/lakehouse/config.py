@@ -16,6 +16,27 @@ BRONZE_TRIGGER = os.environ.get("BRONZE_TRIGGER", "1 second")
 SILVER_TRIGGER = os.environ.get("SILVER_TRIGGER", "2 seconds")
 MAX_OFFSETS_PER_TRIGGER = int(os.environ.get("MAX_OFFSETS_PER_TRIGGER", "200000"))
 
+# How the streaming queries run:
+#   processing_time (default): run forever, one micro-batch every BRONZE/SILVER_TRIGGER
+#   available_now: process everything waiting, then stop. The only mode
+#     serverless compute (e.g. Databricks Free Edition) allows; schedule it as a job.
+TRIGGER_MODE = os.environ.get("TRIGGER_MODE", "processing_time")
+
+# Where bronze reads raw change events from:
+#   kafka (default): the Debezium topics
+#   files: newline-delimited JSON Kafka records (topic, partition, offset,
+#     timestamp, key, value), e.g. exported with lakehouse.export_for_databricks
+#     and uploaded to a Databricks volume. Same records, same bronze rows.
+BRONZE_SOURCE = os.environ.get("BRONZE_SOURCE", "kafka")
+
+
+def trigger_kwargs(interval: str) -> dict:
+    if TRIGGER_MODE == "available_now":
+        return {"availableNow": True}
+    if TRIGGER_MODE != "processing_time":
+        raise ValueError(f"unknown TRIGGER_MODE {TRIGGER_MODE!r}")
+    return {"processingTime": interval}
+
 
 def kafka_options() -> dict[str, str]:
     """Extra Kafka source options as JSON, e.g. for a managed Kafka with SASL:
@@ -35,6 +56,7 @@ def lake_path(*parts: str) -> str:
 
 BRONZE_PATH = lake_path("bronze", "cdc_events")
 QUARANTINE_PATH = lake_path("quarantine", "cdc_rejects")
+BRONZE_SOURCE_PATH = os.environ.get("BRONZE_SOURCE_PATH", lake_path("_landing"))
 SCD2_CUSTOMERS_PATH = lake_path("silver", "dim_customers_scd2")
 METRICS_PATH = lake_path("_metrics", "batch_latency.jsonl")
 

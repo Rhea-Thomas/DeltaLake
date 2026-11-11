@@ -30,7 +30,8 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from .. import config
-from ..cdc import kafka_to_bronze, parse_changes, to_typed
+from ..cdc import KAFKA_RECORD_SCHEMA, files_to_kafka_shape, kafka_to_bronze, parse_changes, to_typed
+from ..delta_utils import materialize
 from ..quality import split_valid_invalid, to_quarantine, write_quarantine
 from ..scd2 import apply_scd2
 from ..silver import upsert_current_state
@@ -57,8 +58,14 @@ def _fault(point: str, batch_id: int) -> None:
         os._exit(137)
 
 
-def start_bronze(spark: SparkSession):
-    kafka = (
+def _raw_source(spark: SparkSession):
+    if config.BRONZE_SOURCE == "files":
+        return files_to_kafka_shape(
+            spark.readStream.schema(KAFKA_RECORD_SCHEMA).json(config.BRONZE_SOURCE_PATH)
+        )
+    if config.BRONZE_SOURCE != "kafka":
+        raise ValueError(f"unknown BRONZE_SOURCE {config.BRONZE_SOURCE!r}")
+    return (
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", config.KAFKA_BOOTSTRAP)
         .option("subscribePattern", config.TOPIC_PATTERN)
@@ -69,14 +76,17 @@ def start_bronze(spark: SparkSession):
         .options(**config.kafka_options())
         .load()
     )
+
+
+def start_bronze(spark: SparkSession):
     return (
-        kafka_to_bronze(kafka)
+        kafka_to_bronze(_raw_source(spark))
         .writeStream.format("delta")
         .queryName("bronze")
         .outputMode("append")
         .partitionBy("source_table", "event_date")
         .option("checkpointLocation", config.checkpoint_path("bronze"))
-        .trigger(processingTime=config.BRONZE_TRIGGER)
+        .trigger(**config.trigger_kwargs(config.BRONZE_TRIGGER))
         .start(config.BRONZE_PATH)
     )
 
@@ -118,7 +128,7 @@ def process_silver_batch(batch: DataFrame, batch_id: int) -> None:
                     if spec is CUSTOMERS:
                         _fault("before_scd2", batch_id)
                         apply_scd2(spark, valid, config.SCD2_CUSTOMERS_PATH, spec)
-                reject = to_quarantine(invalid, spec, batch_id).localCheckpoint(eager=True) if n_invalid else None
+                reject = materialize(to_quarantine(invalid, spec, batch_id)) if n_invalid else None
                 return spec.name, {"valid": n_valid, "invalid": n_invalid}, reject
             finally:
                 valid.unpersist()
@@ -135,6 +145,8 @@ def process_silver_batch(batch: DataFrame, batch_id: int) -> None:
             for r in rejects[1:]:
                 out = out.unionByName(r)
             write_quarantine(spark, out, config.QUARANTINE_PATH)
+            for r in rejects:
+                r.unpersist()
 
         _fault("after_quarantine", batch_id)
         committed = time.time()
@@ -178,7 +190,7 @@ def start_silver(spark: SparkSession):
         bronze.writeStream.queryName("silver")
         .foreachBatch(process_silver_batch)
         .option("checkpointLocation", config.checkpoint_path("silver"))
-        .trigger(processingTime=config.SILVER_TRIGGER)
+        .trigger(**config.trigger_kwargs(config.SILVER_TRIGGER))
         .start()
     )
 
@@ -193,6 +205,32 @@ def wait_for_bronze_table(spark: SparkSession, timeout_s: int = 120) -> None:
         time.sleep(1)
 
 
+def run_available_now(spark: SparkSession) -> None:
+    """Process everything waiting, then stop: bronze first, then silver.
+
+    For serverless compute (Databricks Free Edition), where only the
+    AvailableNow trigger exists. Run it on a schedule; each run continues from
+    the checkpoints, so nothing is processed twice.
+    """
+    from delta.tables import DeltaTable
+
+    t0 = time.time()
+    start_bronze(spark).awaitTermination()
+    print(f"[pipeline] bronze caught up in {time.time() - t0:.1f}s", flush=True)
+    if not DeltaTable.isDeltaTable(spark, config.BRONZE_PATH):
+        print("[pipeline] no input yet; nothing to do", flush=True)
+        return
+    t1 = time.time()
+    if os.environ.get("SILVER_MODE", "stream") == "batch":
+        # Fallback without foreachBatch: hand ALL of bronze to the same batch
+        # function as one batch. Slower (re-reads everything each run) but
+        # correct, because every silver/SCD2/quarantine write is idempotent.
+        process_silver_batch(spark.read.format("delta").load(config.BRONZE_PATH), int(time.time()))
+    else:
+        start_silver(spark).awaitTermination()
+    print(f"[pipeline] silver caught up in {time.time() - t1:.1f}s", flush=True)
+
+
 def main() -> None:
     """Run both queries; with supervision (default) restart them after a failure.
 
@@ -201,7 +239,11 @@ def main() -> None:
     the job-retry behaviour a scheduler such as Databricks Jobs provides; the
     checkpoints and idempotent writes are what make a restart safe.
     """
-    spark = get_spark("lakehouse-pipeline", with_kafka=True)
+    spark = get_spark("lakehouse-pipeline", with_kafka=config.BRONZE_SOURCE == "kafka")
+    if config.TRIGGER_MODE == "available_now":
+        print(f"lake root: {config.LAKE_ROOT} mode=available_now source={config.BRONZE_SOURCE}", flush=True)
+        run_available_now(spark)
+        return
     supervise = os.environ.get("PIPELINE_SUPERVISE", "1") == "1"
     run_seconds = float(os.environ.get("PIPELINE_RUN_SECONDS", "0"))
     deadline = time.time() + run_seconds if run_seconds else None

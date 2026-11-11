@@ -23,6 +23,26 @@ from .tables import TableSpec
 META_COLUMNS = ["_op", "_lsn", "_source_ts_ms", "_source_ts", "_topic", "_partition", "_offset", "_raw"]
 
 
+# A Kafka record as exported to JSON files (see BRONZE_SOURCE=files).
+KAFKA_RECORD_SCHEMA = T.StructType([
+    T.StructField("topic", T.StringType()),
+    T.StructField("partition", T.IntegerType()),
+    T.StructField("offset", T.LongType()),
+    T.StructField("timestamp", T.StringType()),
+    T.StructField("key", T.StringType()),
+    T.StructField("value", T.StringType()),
+])
+
+
+def files_to_kafka_shape(files_df: DataFrame) -> DataFrame:
+    """Exported JSON records -> the same columns the Kafka source produces."""
+    return files_df.select(
+        "topic", "partition", "offset",
+        F.to_timestamp("timestamp").alias("timestamp"),
+        "key", "value",
+    )
+
+
 def kafka_to_bronze(kafka_df: DataFrame) -> DataFrame:
     """Kafka source rows -> bronze rows. Raw payload is preserved untouched."""
     value = F.col("value").cast("string")

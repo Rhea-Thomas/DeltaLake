@@ -1,8 +1,28 @@
 from __future__ import annotations
 
+import os
+
 from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
+
+
+def materialize(df):
+    """Compute a DataFrame once and cut it loose from its inputs.
+
+    localCheckpoint() does that best, but serverless/Spark Connect compute (e.g.
+    Databricks Free Edition) may not support it, so there persist() + count()
+    is used instead. LAKEHOUSE_MATERIALIZE=local_checkpoint|persist overrides
+    the automatic choice (the unit tests run both).
+    """
+    mode = os.environ.get("LAKEHOUSE_MATERIALIZE", "auto")
+    if mode == "auto":
+        mode = "persist" if os.environ.get("DATABRICKS_RUNTIME_VERSION") else "local_checkpoint"
+    if mode == "persist":
+        df = df.persist()
+        df.count()
+        return df
+    return df.localCheckpoint(eager=True)
 
 
 def _nullable(schema: T.StructType) -> T.StructType:

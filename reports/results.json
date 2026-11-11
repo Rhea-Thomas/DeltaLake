@@ -1,138 +1,139 @@
 {
-  "run_at": "2026-11-11 01:22 UTC",
+  "run_at": "2026-11-11 03:03 UTC",
   "machine": "arm64 Darwin 25.6.0",
-  "clock_skew_ms": 1.3,
+  "clock_skew_ms": -14.3,
   "steady": {
     "rate_actions_per_s": 100.0,
     "duration_s": 120.0,
     "generator": "ran 12000 actions in 120.0s (100/s), ~243 rule-breaking values generated\n  advance_order    2341\n  cancel_order     357\n  delete_customer  230\n  delete_order     245\n  insert_customer  1242\n  insert_product   234\n  place_order      4179\n  update_customer  2190\n  update_product   982",
     "batches": 18,
-    "events": 16539,
+    "events": 16676,
     "e2e_latency_ms": {
-      "n": 16539,
-      "p50": 12846.0,
-      "p95": 17222.1,
-      "p99": 19155.0,
-      "max": 20140,
-      "mean": 12954.4
+      "n": 16676,
+      "p50": 12973.0,
+      "p95": 16844.2,
+      "p99": 18217.5,
+      "max": 18705,
+      "mean": 12983.9
     },
     "pg_to_kafka_ms": {
-      "n": 16539,
-      "p50": 478.0,
-      "p95": 850.0,
-      "p99": 942.6,
-      "max": 1003,
-      "mean": 481.1
+      "n": 16676,
+      "p50": 489.0,
+      "p95": 853.0,
+      "p99": 945.0,
+      "max": 1001,
+      "mean": 492.2
     },
     "pg_to_bronze_batch_start_ms": {
-      "n": 16539,
-      "p50": 1363.0,
-      "p95": 2585.0,
-      "p99": 3146.2,
-      "max": 3655,
-      "mean": 1421.9
+      "n": 16676,
+      "p50": 1381.0,
+      "p95": 2693.2,
+      "p99": 3297.5,
+      "max": 3662,
+      "mean": 1446.1
     },
     "silver_batch_duration_s": {
       "n": 18,
-      "p50": 6.6,
-      "p95": 9.0,
-      "p99": 9.4,
-      "max": 9.453,
+      "p50": 6.8,
+      "p95": 8.2,
+      "p99": 8.4,
+      "max": 8.416,
       "mean": 6.8
     }
   },
   "burst": {
     "duration_s": 60.0,
-    "generator": "ran 29029 actions in 60.0s (484/s), ~664 rule-breaking values generated\n  advance_order    5828\n  cancel_order     841\n  delete_customer  576\n  delete_order     569\n  insert_customer  2945\n  insert_product   591\n  place_order      10120\n  update_customer  5331\n  update_product   2228",
-    "events": 40229,
-    "batches": 8,
-    "source_events_per_s": 668.9,
-    "end_to_end_events_per_s": 602.9,
-    "catch_up_after_generator_stopped_s": 6.6,
-    "silver_processing_events_per_busy_s": 641.0,
+    "generator": "ran 21826 actions in 60.0s (364/s), ~493 rule-breaking values generated\n  advance_order    4342\n  cancel_order     652\n  delete_customer  435\n  delete_order     431\n  insert_customer  2234\n  insert_product   428\n  place_order      7610\n  update_customer  4040\n  update_product   1654",
+    "events": 30566,
+    "batches": 9,
+    "source_events_per_s": 508.0,
+    "end_to_end_events_per_s": 443.0,
+    "catch_up_after_generator_stopped_s": 8.8,
+    "silver_processing_events_per_busy_s": 473.4,
     "e2e_latency_ms": {
-      "n": 40229,
-      "p50": 15629.0,
-      "p95": 21319.0,
-      "p99": 23476.2,
-      "max": 24064,
-      "mean": 15649.7
+      "n": 30566,
+      "p50": 14049.0,
+      "p95": 18336.8,
+      "p99": 19084.0,
+      "max": 19266,
+      "mean": 14121.4
     }
   },
   "bulk": {
-    "rows_updated_in_one_transaction": 27825,
+    "rows_updated_in_one_transaction": 58510,
     "batches": 1,
-    "events_seen": 27825,
-    "commit_to_fully_visible_s": 5.5,
-    "events_per_s": 5056.3,
+    "events_seen": 58510,
+    "commit_to_fully_visible_s": 6.7,
+    "events_per_s": 8718.5,
     "e2e_latency_ms": {
-      "n": 27825,
-      "p50": 5507.0,
-      "p95": 5507.0,
-      "p99": 5507.0,
-      "max": 5507,
-      "mean": 5507.0
+      "n": 58510,
+      "p50": 6723.0,
+      "p95": 6723.0,
+      "p99": 6723.0,
+      "max": 6723,
+      "mean": 6723.0
     }
   },
   "reconciliation": {
     "ok": true,
-    "seconds": 1.6510139160000108,
+    "seconds": 2.300529459000245,
     "facts": {
-      "kafka_messages": 196159,
-      "bronze_rows": 196159,
+      "kafka_messages": 490432,
+      "bronze_rows": 490432,
+      "duplicate_change_events_absorbed": 250,
       "customers": {
-        "source_rows": 9211,
-        "silver_live": 9033,
-        "silver_soft_deleted": 2149,
-        "matched_exactly": 8938,
-        "latest_change_quarantined": 273,
-        "quarantined_events": 863
+        "source_rows": 19877,
+        "silver_live": 19466,
+        "silver_soft_deleted": 4749,
+        "matched_exactly": 19277,
+        "latest_change_quarantined": 600,
+        "quarantined_events": 2018
       },
       "products": {
-        "source_rows": 2240,
-        "silver_live": 2159,
+        "source_rows": 4858,
+        "silver_live": 4691,
         "silver_soft_deleted": 0,
-        "matched_exactly": 1960,
-        "latest_change_quarantined": 280,
-        "quarantined_events": 5849
+        "matched_exactly": 4234,
+        "latest_change_quarantined": 624,
+        "quarantined_events": 13793
       },
       "orders": {
-        "source_rows": 27825,
-        "silver_live": 26942,
-        "silver_soft_deleted": 10619,
-        "matched_exactly": 26942,
-        "latest_change_quarantined": 883,
-        "quarantined_events": 2862
+        "source_rows": 58510,
+        "silver_live": 56706,
+        "silver_soft_deleted": 26093,
+        "matched_exactly": 56706,
+        "latest_change_quarantined": 1804,
+        "quarantined_events": 7985
       },
       "dim_customers_scd2": {
-        "versions": 32499,
-        "current": 9033,
-        "valid_customer_events": 32499
+        "versions": 71343,
+        "current": 19466,
+        "valid_customer_events": 71343
       },
-      "quarantine_rows": 9574
+      "quarantine_rows": 23796
     },
     "failures": []
   },
   "layer_counts": {
-    "bronze.cdc_events": 196159,
-    "silver.customers (live)": 9033,
-    "silver.products (live)": 2159,
-    "silver.orders (live)": 26942,
-    "silver.dim_customers_scd2 (versions)": 32499,
-    "silver.dim_customers_scd2 (current)": 9033,
-    "quarantine.cdc_rejects": 9574,
+    "bronze.cdc_events": 490432,
+    "silver.customers (live)": 19466,
+    "silver.products (live)": 4691,
+    "silver.orders (live)": 56706,
+    "silver.dim_customers_scd2 (versions)": 71343,
+    "silver.dim_customers_scd2 (current)": 19466,
+    "quarantine.cdc_rejects": 23796,
     "bronze by table/op": {
-      "customers/c": 11060,
-      "customers/d": 2149,
+      "customers/c": 24337,
+      "customers/d": 4753,
       "customers/r": 300,
-      "customers/u": 19853,
-      "orders/c": 37844,
-      "orders/d": 10619,
+      "customers/u": 44010,
+      "orders/c": 84071,
+      "orders/d": 26120,
       "orders/r": 600,
-      "orders/u": 65033,
-      "products/c": 2180,
+      "orders/u": 198003,
+      "products/c": 4806,
       "products/r": 60,
-      "products/u": 46461
+      "products/u": 103372
     }
   }
 }

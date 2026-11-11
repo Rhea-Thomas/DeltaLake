@@ -1,37 +1,37 @@
 # Measured results
 
-Run at 2026-11-11 01:22 UTC on arm64 Darwin 25.6.0. Clock skew Postgres container vs host: 1.3 ms (positive = container ahead).
+Run at 2026-11-11 03:03 UTC on arm64 Darwin 25.6.0. Clock skew Postgres container vs host: -14.3 ms (positive = container ahead).
 
 ## End-to-end latency (Postgres commit -> visible in silver and SCD2)
 
-Steady load: 100 generator actions/s for 120s, 16539 change events in 18 silver micro-batches.
+Steady load: 100 generator actions/s for 120s, 16676 change events in 18 silver micro-batches.
 
 | stage | p50 | p95 | p99 | max |
 |---|---|---|---|---|
-| Postgres -> Kafka (Debezium) | 478.0 ms | 850.0 ms | 942.6 ms | 1003 ms |
-| Postgres -> bronze micro-batch start | 1363.0 ms | 2585.0 ms | 3146.2 ms | 3655 ms |
-| **Postgres -> silver + SCD2 committed** | 12846.0 ms | 17222.1 ms | 19155.0 ms | 20140 ms |
+| Postgres -> Kafka (Debezium) | 489.0 ms | 853.0 ms | 945.0 ms | 1001 ms |
+| Postgres -> bronze micro-batch start | 1381.0 ms | 2693.2 ms | 3297.5 ms | 3662 ms |
+| **Postgres -> silver + SCD2 committed** | 12973.0 ms | 16844.2 ms | 18217.5 ms | 18705 ms |
 
-Silver micro-batch duration: p50 6.6 s, p95 9.0 s.
+Silver micro-batch duration: p50 6.8 s, p95 8.2 s.
 
 ## Throughput
 
-* Unthrottled generator for 60s produced 40229 events (668.9 events/s at the source); the pipeline caught up 6.6 s after the generator stopped. End-to-end: **602.9 events/s**. Latency under this load: p50 15629.0 ms, p95 21319.0 ms.
-* One transaction updating all 27825 orders: fully visible in silver 5.5 s after commit (**5056.3 events/s**), in 1 micro-batch(es).
+* Unthrottled generator for 60s produced 30566 events (508.0 events/s at the source); the pipeline caught up 8.8 s after the generator stopped. End-to-end: **443.0 events/s**. Latency under this load: p50 14049.0 ms, p95 18336.8 ms.
+* One transaction updating all 58510 orders: fully visible in silver 6.7 s after commit (**8718.5 events/s**), in 1 micro-batch(es).
 
 ## Row counts per layer (after the run)
 
 | table | rows |
 |---|---|
-| bronze.cdc_events | 196159 |
-| silver.customers (live) | 9033 |
-| silver.products (live) | 2159 |
-| silver.orders (live) | 26942 |
-| silver.dim_customers_scd2 (versions) | 32499 |
-| silver.dim_customers_scd2 (current) | 9033 |
-| quarantine.cdc_rejects | 9574 |
+| bronze.cdc_events | 490432 |
+| silver.customers (live) | 19466 |
+| silver.products (live) | 4691 |
+| silver.orders (live) | 56706 |
+| silver.dim_customers_scd2 (versions) | 71343 |
+| silver.dim_customers_scd2 (current) | 19466 |
+| quarantine.cdc_rejects | 23796 |
 
-Bronze events by table/op: customers/c=11060, customers/d=2149, customers/r=300, customers/u=19853, orders/c=37844, orders/d=10619, orders/r=600, orders/u=65033, products/c=2180, products/r=60, products/u=46461
+Bronze events by table/op: customers/c=24337, customers/d=4753, customers/r=300, customers/u=44010, orders/c=84071, orders/d=26120, orders/r=600, orders/u=198003, products/c=4806, products/r=60, products/u=103372
 
 ## Reconciliation
 
@@ -39,37 +39,38 @@ PASSED after 2s of polling.
 
 ```json
 {
-  "kafka_messages": 196159,
-  "bronze_rows": 196159,
+  "kafka_messages": 490432,
+  "bronze_rows": 490432,
+  "duplicate_change_events_absorbed": 250,
   "customers": {
-    "source_rows": 9211,
-    "silver_live": 9033,
-    "silver_soft_deleted": 2149,
-    "matched_exactly": 8938,
-    "latest_change_quarantined": 273,
-    "quarantined_events": 863
+    "source_rows": 19877,
+    "silver_live": 19466,
+    "silver_soft_deleted": 4749,
+    "matched_exactly": 19277,
+    "latest_change_quarantined": 600,
+    "quarantined_events": 2018
   },
   "products": {
-    "source_rows": 2240,
-    "silver_live": 2159,
+    "source_rows": 4858,
+    "silver_live": 4691,
     "silver_soft_deleted": 0,
-    "matched_exactly": 1960,
-    "latest_change_quarantined": 280,
-    "quarantined_events": 5849
+    "matched_exactly": 4234,
+    "latest_change_quarantined": 624,
+    "quarantined_events": 13793
   },
   "orders": {
-    "source_rows": 27825,
-    "silver_live": 26942,
-    "silver_soft_deleted": 10619,
-    "matched_exactly": 26942,
-    "latest_change_quarantined": 883,
-    "quarantined_events": 2862
+    "source_rows": 58510,
+    "silver_live": 56706,
+    "silver_soft_deleted": 26093,
+    "matched_exactly": 56706,
+    "latest_change_quarantined": 1804,
+    "quarantined_events": 7985
   },
   "dim_customers_scd2": {
-    "versions": 32499,
-    "current": 9033,
-    "valid_customer_events": 32499
+    "versions": 71343,
+    "current": 19466,
+    "valid_customer_events": 71343
   },
-  "quarantine_rows": 9574
+  "quarantine_rows": 23796
 }
 ```

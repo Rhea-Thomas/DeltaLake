@@ -75,8 +75,12 @@ def run_generator(rate: float, duration: float, seed: int) -> str:
     return res.stdout.strip()
 
 
-def wait_idle(since_ms: int, quiet_s: float = 8, timeout_s: float = 600) -> None:
-    """Wait until no new non-empty batch has committed for ``quiet_s`` seconds."""
+def wait_idle(since_ms: int, quiet_s: float = 25, timeout_s: float = 600) -> None:
+    """Wait until no new non-empty batch has committed for ``quiet_s`` seconds.
+
+    ``quiet_s`` must exceed the longest batch duration (~10 s), otherwise a batch
+    still running counts as idle and its events are missed.
+    """
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         bs = batches_since(since_ms)

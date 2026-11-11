@@ -5,6 +5,7 @@
 #   postgres:16.4                       - source OLTP database, logical decoding via pgoutput
 #   apache/kafka:3.8.1                  - single-node KRaft broker+controller (no ZooKeeper)
 #   quay.io/debezium/connect:2.7.3.Final - Kafka Connect runtime with the Debezium connectors
+#   trinodb/trino:465                   - distributed SQL engine, Delta Lake connector over ./lake
 name: deltalake
 
 services:
@@ -81,3 +82,16 @@ services:
       interval: 3s
       timeout: 5s
       retries: 60
+
+  trino:
+    image: trinodb/trino:465
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./trino/catalog/lake.properties:/etc/trino/catalog/lake.properties:ro
+      - ./lake:/lake
+    healthcheck:
+      test: ["CMD-SHELL", "trino --execute \"SELECT count(*) FROM system.runtime.nodes WHERE state = 'active'\" 2>/dev/null | grep -q 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 40

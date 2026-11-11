@@ -6,7 +6,7 @@ export PYTHONPATH := src
 export JAVA_HOME ?= $(shell /usr/libexec/java_home -v 17 2>/dev/null || echo /opt/homebrew/opt/openjdk@17)
 export PATH := $(JAVA_HOME)/bin:$(PATH)
 
-.PHONY: help up venv infra seed connector stream generate query reconcile measure test e2e demo down clean
+.PHONY: help up venv infra seed connector stream generate query trino-query trino-check reconcile measure test e2e failure demo down clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-11s %s\n", $$1, $$2}'
@@ -39,6 +39,12 @@ generate: ## run the workload generator (RATE=50 DURATION=120)
 
 query: ## run the example DuckDB queries in queries/
 	$(PY) -m lakehouse.query
+
+trino-query: ## run the Trino queries in queries/trino/ (registers the Delta tables first)
+	$(PY) -m lakehouse.trino_query
+
+trino-check: ## same aggregates on Trino and DuckDB must match exactly
+	$(PY) -m lakehouse.trino_query --check
 
 reconcile: ## check Delta tables against source Postgres
 	$(PY) -m lakehouse.reconcile

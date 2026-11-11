@@ -7,9 +7,13 @@ through **Kafka**, and processes it with **PySpark Structured Streaming** into
 * **bronze**: raw change events, exactly once;
 * **silver**: validated current-state tables;
 * **quarantine**: invalid records, each with the reason it failed;
-* **SCD Type 2** customer history.
+* **SCD Type 2** customer history;
+* **gold**: a star schema (facts + dimensions) built by **dbt** on Trino,
+  also stored as Delta tables, with 31 dbt tests.
 
-The same Delta tables are queried with plain SQL from two engines that never
+**Airflow** orchestrates the batch work around the stream: hourly health and
+lag checks, Debezium auto-repair and the dbt build, plus daily compaction,
+Z-ordering and vacuum. The same Delta tables are queried with plain SQL from two engines that never
 touch Spark: **DuckDB** (in-process) and **Trino** (distributed SQL with a
 catalog). The two agree exactly. A failure-injection suite crashes each
 component under load and proves the lake still reconciles exactly with
@@ -34,7 +38,10 @@ in `local[4]` mode, and the lake on local disk. Full report in
 | **Failure injection**, 7 scenarios (below) | **7/7 recovered and reconciled exactly** |
 | **Full replay**: empty lake rebuilt from Kafka offset 0 (~243k events) | reconciled exactly in 33 s |
 | **Trino vs DuckDB**, 11 aggregates over the same tables | identical, including revenue to the cent |
-| Unit tests | 48 passing (CI on GitHub Actions) |
+| **dbt build** (9 models, 31 tests) on the gold star schema | 40/40 passing; gold totals identical in Trino, DuckDB and Spark |
+| **Airflow**: `lakehouse_hourly` and `lakehouse_maintenance` executed with `airflow dags test` | all tasks succeeded |
+| **Compaction** of bronze (2,846 → 3 files) | full scans 10–15× faster on DuckDB and Trino (below) |
+| Unit tests (+ 4 DAG integrity tests) | 49 passing (+4), in GitHub Actions CI |
 
 Row counts after the benchmark:
 
@@ -60,6 +67,35 @@ Two changes moved the number:
 Big transactions amortise the fixed cost, hence about 8,700 events/s for a bulk
 update. Seconds-level freshness suits analytics, but this setup is not
 sub-second (see Limitations).
+
+### Query performance: before vs after tuning
+
+Same SQL, same data, median of 5 runs ([`reports/PERFORMANCE.md`](reports/PERFORMANCE.md)).
+The tuning: bronze re-partitioned by `(source_table, event_date)`, OPTIMIZE
+compaction, Z-ORDER on `customer_id`, gold `fct_orders` partitioned by
+`order_date`, and VACUUM.
+
+| Query | Files before → after | DuckDB before → after | Trino before → after |
+|---|---|---|---|
+| Bronze full scan | 2,846 → 3 | 155 → 10 ms (**15×**) | 318 → 30 ms (**11×**) |
+| Bronze, one table, 30-min window | 2,846 → 3 | 122 → 12 ms (**10×**) | 118 → 22 ms (**5.5×**) |
+| Quarantine reasons | 341 → 1 | 19 → 4 ms (**4.5×**) | 62 → 26 ms (**2.4×**) |
+| Silver orders for one customer | 4 → 1 | 4 → 5 ms (0.7×) | 31 → 18 ms (1.7×) |
+| SCD2 as-of for one customer | 4 → 1 | 4 → 5 ms (0.7×) | 20 → 20 ms (1.0×) |
+| Gold star join | 1 → 1 | 9 → 9 ms (1.0×) | 70 → 62 ms (1.1×) |
+| Gold fact, one day | 1 → 1 | 1 → 1 ms (1.0×) | 16 → 16 ms (1.1×) |
+
+The honest reading:
+* **Compaction is the whole win.** The 1-second streaming trigger had left
+  thousands of tiny files in bronze.
+* **Z-ordering and date partitioning measured as no gain at this size.** Every
+  table fits in one file after compaction, so there is nothing to skip. All
+  the data falls on one day, so there is nothing to prune.
+* **The layout is still the production-correct one**; this dataset is too
+  small to show it.
+* **DuckDB's silver queries got slightly slower** (4 → 5 ms): one file means
+  fewer parallel readers.
+* Every query returned identical results before and after.
 
 ### Failure injection
 
@@ -112,8 +148,12 @@ flowchart LR
         SC[("silver<br/>dim_customers_scd2")]
         Q[("quarantine<br/>cdc_rejects")]
     end
+    subgraph GOLD["gold (dbt on Trino → Delta)"]
+        G[("fct_orders · fct_daily_sales<br/>dim_customer (SCD2) · dim_product<br/>dim_date · dim_order_status")]
+    end
     DD["DuckDB<br/>delta_scan + SQL"]
     TR["Trino 465<br/>Delta Lake connector"]
+    AF{{"Airflow<br/>hourly: health → repair → lag → dbt build<br/>daily: OPTIMIZE / Z-ORDER → VACUUM → dbt"}}
 
     PG -- WAL --> DBZ -- "JSON change events<br/>keyed by PK" --> K --> B --> BR --> S
     S -- valid, latest by LSN --> SV
@@ -127,6 +167,10 @@ flowchart LR
     SC --> TR
     Q --> TR
     BR --> TR
+    TR -- "dbt models + 31 tests" --> G
+    G --> DD
+    AF -.orchestrates.-> TR
+    AF -.maintains.-> LAKE
 ```
 
 | Stage | What happens | Guarantee |
@@ -136,12 +180,16 @@ flowchart LR
 | Kafka → bronze | Raw message + Kafka coordinates, partitioned by table | Exactly-once (checkpoint + Delta sink) |
 | bronze → silver | Validate, quarantine rejects, MERGE latest change per key by **LSN** | Idempotent, so replays and duplicates are no-ops |
 | silver → SCD2 | Rebuild touched keys' version chains by LSN, MERGE on (key, LSN) | Handles updates, deletes, duplicates, out-of-order |
+| silver → gold | dbt models on Trino write a star schema as Delta tables | 31 dbt tests gate every build |
 | DuckDB / Trino | Read the Delta log and Parquet files directly | Plain SQL, no Spark; both engines agree exactly |
+| Airflow | Health and lag checks, Debezium repair, dbt build, table maintenance | A failing check or dbt test fails the DAG |
 
 ## Quick start
 
 Prerequisites: Docker (OrbStack/Docker Desktop), Python 3.11, Java 17, `make`.
-On macOS: `brew install python@3.11 openjdk@17`.
+On macOS: `brew install python@3.11 openjdk@17`. Spark, dbt and Airflow each
+get their own virtualenv (`.venv`, `.venv-dbt`, `.venv-airflow`), so their
+dependency pins never collide; `make` creates them on first use.
 
 ```bash
 make up          # containers, venv, seed Postgres, register Debezium (one command)
@@ -154,12 +202,17 @@ make trino-check # same 11 aggregates on Trino and DuckDB must match
 make measure     # latency / throughput / row counts -> reports/RESULTS.md
 make test        # unit tests, no Docker needed
 make e2e         # end-to-end reconciliation + cross-engine tests
+make dbt         # build + test the gold star schema (dbt on Trino)
+make airflow-test # DAG integrity tests + run the hourly DAG once
+make airflow     # Airflow UI + scheduler on http://localhost:8081
+make health      # service health + pipeline lag (Kafka→bronze, bronze→silver)
+make maintenance # OPTIMIZE / Z-ORDER every Delta table
 make failure     # failure-injection suite (stop `make stream` first), ~10 min
 make demo        # up + pipeline in background + workload + reconcile + queries
 make clean       # stop containers, delete volumes and the local lake
 ```
 
-Ports: Postgres `5433`, Kafka `9092`, Kafka Connect `8083`, Trino `8080`.
+Ports: Postgres `5433`, Kafka `9092`, Kafka Connect `8083`, Trino `8080`, Airflow `8081`.
 
 ## What's inside
 
@@ -235,6 +288,56 @@ make query
   aggregates.
 * `tests/failure/` (`make failure`): the 7 failure-injection scenarios above.
 
+**Gold star schema** (`dbt/`). dbt-trino builds Delta tables in `lake/gold`,
+which Spark and DuckDB read too; all three engines return identical totals.
+
+| Model | Grain / role |
+|---|---|
+| `fct_orders` | one row per live order; measures quantity, amount, net revenue; partitioned by `order_date` |
+| `fct_daily_sales` | date × product × customer tier at order time |
+| `dim_customer` | **SCD2**: one row per customer version, with a surrogate key |
+| `dim_product`, `dim_date`, `dim_order_status` | current product attributes, calendar, status lookup |
+
+* **Facts join the customer version valid when the order was placed**: a
+  point-in-time join on `valid_from`/`valid_to`, so revenue by tier is
+  attributed to the tier at the time.
+* Orders with no valid customer version point at the Kimball **unknown
+  member** (`-1`), rather than being dropped.
+* **dbt tests (31)**: `unique`/`not_null`/`relationships`/`accepted_values` on
+  every key, plus custom tests:
+  - no overlapping SCD2 intervals;
+  - one current version per customer;
+  - the point-in-time key really is valid at order time;
+  - the daily fact adds up to the order fact;
+  - the order fact reconciles with silver.
+* **The silver reconciliation test stays exact while the stream keeps
+  writing.** It compares only silver rows at or below the highest LSN the fact
+  saw (an LSN watermark), and any row changed since then has a higher LSN.
+
+**Orchestration** (`airflow/dags/lakehouse_dags.py`). The stream is a
+long-running Spark app (on Databricks, a continuous job), so Airflow schedules
+the batch work around it rather than running it:
+* `lakehouse_hourly`: services → connector repair (`scripts/ensure_connector.sh`
+  restarts a FAILED/UNASSIGNED Debezium task over REST) → pipeline lag
+  (`lakehouse.health`) → `dbt build`.
+* `lakehouse_maintenance` (daily): OPTIMIZE/Z-ORDER → VACUUM → rebuild gold.
+
+Tasks call project commands (`make dbt`, `python -m lakehouse.maintenance …`),
+so they run the same way by hand or from any scheduler. Both DAGs were
+executed end to end with `airflow dags test`, and CI checks that they import
+with the expected task graph.
+
+**Performance tuning** (`src/lakehouse/maintenance.py`,
+`src/lakehouse/query_bench.py`): compaction, Z-ordering, vacuum, and a one-off
+`relayout-bronze` that re-partitions bronze by `(source_table, event_date)`.
+* **What the re-layout taught me:** adding the partition column is a schema
+  change to the silver query's streaming source. The silver query then refused
+  to restart (`DELTA_SCHEMA_CHANGED_WITH_VERSION`), while bronze kept
+  ingesting.
+* **The fix:** the re-layout now also restarts silver on a new checkpoint from
+  the version after the rewrite, and the silver reader uses `skipChangeCommits`
+  so the rewrite itself is never re-read. The recovered lake reconciled exactly.
+
 ## Design notes
 
 * Ordering uses the **Postgres LSN**, never arrival time. Per row it is strictly
@@ -259,8 +362,16 @@ make query
   clustering to shrink MERGE rewrites.
 * **Single node.** One Kafka broker (RF=1), Spark `local[4]`, local disk. Fine for a
   demo; production needs replicated Kafka and object storage.
-* **No compaction yet.** Micro-batches create many small files (about 1,200 in
-  bronze after one benchmark). `OPTIMIZE`/`VACUUM` are not scheduled.
+* **Small files come back between maintenance runs.** The 1-second bronze
+  trigger recreates them; the daily DAG compacts them. Delta's
+  auto-compaction is the in-stream alternative, not used here.
+* **Gold is rebuilt in full every run, not incrementally.** Trino's Delta
+  connector cannot INSERT or MERGE into an existing table on a local file
+  system, so dbt uses drop-and-create (CTAS) and a table is briefly absent
+  during its rebuild. On S3 with a single writer, or on Databricks, `fct_orders`
+  would become an incremental MERGE model.
+* **Partitioning and Z-ordering gains are unproven here.** The data spans one
+  day and fits in one file per table (see the performance table).
 * **JSON, no schema registry.** A source schema change needs `tables.py`
   updated.
 * **Quarantine volume is high for products.** Once a product's price goes

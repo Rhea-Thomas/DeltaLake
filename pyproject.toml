@@ -1,0 +1,10 @@
+[project]
+name = "deltalake-lakehouse"
+version = "0.1.0"
+description = "Postgres -> Debezium -> Kafka -> Spark Structured Streaming -> Delta Lake medallion pipeline"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests/unit"]
+markers = ["e2e: needs the running Docker stack and pipeline"]

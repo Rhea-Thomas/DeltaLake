@@ -38,6 +38,10 @@ def kafka_to_bronze(kafka_df: DataFrame) -> DataFrame:
         F.get_json_object(value, "$.source.lsn").cast("long").alias("lsn"),
         F.get_json_object(value, "$.source.ts_ms").cast("long").alias("source_ts_ms"),
         F.current_timestamp().alias("ingested_at"),
+        # Partition column: the source commit date (event time, not arrival),
+        # so "changes on day X" prunes to one directory per table.
+        F.to_date(F.expr("timestamp_millis(CAST(get_json_object(CAST(value AS STRING), '$.source.ts_ms') AS BIGINT))"))
+        .alias("event_date"),
     )
 
 

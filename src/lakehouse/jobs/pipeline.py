@@ -74,7 +74,7 @@ def start_bronze(spark: SparkSession):
         .writeStream.format("delta")
         .queryName("bronze")
         .outputMode("append")
-        .partitionBy("source_table")
+        .partitionBy("source_table", "event_date")
         .option("checkpointLocation", config.checkpoint_path("bronze"))
         .trigger(processingTime=config.BRONZE_TRIGGER)
         .start(config.BRONZE_PATH)
@@ -161,7 +161,19 @@ def process_silver_batch(batch: DataFrame, batch_id: int) -> None:
 
 
 def start_silver(spark: SparkSession):
-    bronze = spark.readStream.format("delta").load(config.BRONZE_PATH)
+    # skipChangeCommits: ignore commits that rewrite existing bronze files (a
+    # one-off re-layout such as `maintenance relayout-bronze`) instead of failing
+    # or re-reading them as new data. Appends are unaffected, and OPTIMIZE
+    # commits (dataChange=false) are skipped by the Delta source anyway.
+    reader = spark.readStream.format("delta").option("skipChangeCommits", "true")
+    # After a bronze re-layout the silver query starts on a fresh checkpoint
+    # from a recorded version (see lakehouse.maintenance.restart_silver_from).
+    marker = Path(config.checkpoint_path("silver.start_version"))
+    if marker.exists() and not (Path(config.checkpoint_path("silver")) / "offsets").exists():
+        version = int(marker.read_text().strip())
+        print(f"[pipeline] silver starting from bronze version {version} on a new checkpoint", flush=True)
+        reader = reader.option("startingVersion", version)
+    bronze = reader.load(config.BRONZE_PATH)
     return (
         bronze.writeStream.queryName("silver")
         .foreachBatch(process_silver_batch)

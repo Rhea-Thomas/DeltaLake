@@ -97,10 +97,34 @@ def vacuum(spark: SparkSession, retain_hours: float) -> None:
             print(f"  vacuumed {name} (retain {retain_hours}h)", flush=True)
 
 
+SILVER_START_MARKER = config.checkpoint_path("silver.start_version")
+
+
+def restart_silver_from(spark: SparkSession, start_version: int) -> None:
+    """Point the silver stream at a fresh checkpoint starting at ``start_version``.
+
+    A streaming query cannot read across a schema change in its Delta source
+    (DELTA_SCHEMA_CHANGED_WITH_VERSION, repeatedly, on every restart), so after
+    a bronze re-layout the silver query must start over on a new checkpoint.
+    Everything before the re-layout was already applied to silver, and silver
+    writes are idempotent, so starting right after the re-layout loses nothing.
+    The old checkpoint is kept (renamed), not deleted.
+    """
+    import os
+    from pathlib import Path
+
+    old = Path(config.checkpoint_path("silver"))
+    if old.exists():
+        os.rename(old, f"{old}.before-v{start_version}")
+    Path(SILVER_START_MARKER).write_text(str(start_version))
+    print(f"silver will restart on a new checkpoint from bronze version {start_version}")
+
+
 def relayout_bronze(spark: SparkSession) -> None:
     """Rewrite bronze partitioned by (source_table, event_date). Stop the
     pipeline first. The silver stream reads bronze with skipChangeCommits, so
-    it skips this rewrite commit instead of reprocessing the rewritten rows."""
+    the rewrite commit is never re-read as new data, and it is restarted on a
+    new checkpoint just after that commit (see restart_silver_from)."""
     path = config.BRONZE_PATH
     df = spark.read.format("delta").load(path)
     if "event_date" in df.columns and DeltaTable.forPath(spark, path).detail().first()["partitionColumns"] == [
@@ -115,11 +139,15 @@ def relayout_bronze(spark: SparkSession) -> None:
        .partitionBy("source_table", "event_date")
        .save(path))
     print(f"bronze rewritten: {n} rows, partitioned by (source_table, event_date)")
+    rewrite_version = DeltaTable.forPath(spark, path).history(1).first()["version"]
+    restart_silver_from(spark, rewrite_version + 1)
 
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["stats", "optimize", "compact", "vacuum", "relayout-bronze"])
+    ap.add_argument("command", choices=["stats", "optimize", "compact", "vacuum", "relayout-bronze",
+                                        "restart-silver-from"])
+    ap.add_argument("--version", type=int, help="bronze version for restart-silver-from")
     ap.add_argument("--retain-hours", type=float, default=168)
     args = ap.parse_args(argv)
 
@@ -134,6 +162,8 @@ def main(argv: list[str] | None = None) -> None:
         vacuum(spark, args.retain_hours)
     elif args.command == "relayout-bronze":
         relayout_bronze(spark)
+    elif args.command == "restart-silver-from":
+        restart_silver_from(spark, args.version)
     spark.stop()
 
 

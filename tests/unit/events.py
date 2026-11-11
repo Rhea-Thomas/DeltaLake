@@ -20,6 +20,7 @@ BRONZE_SCHEMA = T.StructType([
     T.StructField("lsn", T.LongType()),
     T.StructField("source_ts_ms", T.LongType()),
     T.StructField("ingested_at", T.TimestampType()),
+    T.StructField("event_date", T.DateType()),
 ])
 
 BASE_MS = 1_767_225_600_000  # 2026-01-01T00:00:00Z
@@ -57,7 +58,7 @@ def event(table: str, op: str, lsn: int, row: dict, minutes: float | None = None
         "ts_ms": ts_ms(minutes) + 50,
     }
     return (f"src.public.{table}", 0, offset, ts(minutes), json.dumps({pk: row.get(pk)}),
-            json.dumps(payload), table, op, lsn, ts_ms(minutes), ts(minutes))
+            json.dumps(payload), table, op, lsn, ts_ms(minutes), ts(minutes), ts(minutes).date())
 
 
 def bronze_df(spark, rows):

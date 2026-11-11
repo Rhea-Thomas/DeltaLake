@@ -1,3 +1,5 @@
+{# Partition by order date: date-filtered queries read one directory. #}
+{{ config(properties={"partitioned_by": "ARRAY['order_date']"}) }}
 -- Order fact, grain = one row per order (current state).
 -- The customer key points at the customer *version valid when the order was
 -- placed* (point-in-time join on the SCD2 dimension), not today's version.

@@ -2,46 +2,46 @@
   {
     "scenario": "Spark driver killed",
     "fault": "SIGKILL of the Spark app mid-stream, down 10 s",
-    "recovery": "restarted from checkpoints, first batch after 21s",
+    "recovery": "restarted from checkpoints, first batch after 19s",
     "ok": true,
-    "reconcile_s": 14.691741209000611,
-    "bronze_rows": 249723,
-    "duplicates": 67,
+    "reconcile_s": 16.739436750001914,
+    "bronze_rows": 504932,
+    "duplicates": 250,
     "failures": [],
     "facts": {
-      "kafka_messages": 249723,
-      "bronze_rows": 249723,
-      "duplicate_change_events_absorbed": 67,
+      "kafka_messages": 504932,
+      "bronze_rows": 504932,
+      "duplicate_change_events_absorbed": 250,
       "customers": {
-        "source_rows": 12185,
-        "silver_live": 11922,
-        "silver_soft_deleted": 2902,
-        "matched_exactly": 11810,
-        "latest_change_quarantined": 375,
-        "quarantined_events": 1180
+        "source_rows": 20703,
+        "silver_live": 20274,
+        "silver_soft_deleted": 4949,
+        "matched_exactly": 20082,
+        "latest_change_quarantined": 621,
+        "quarantined_events": 2106
       },
       "products": {
-        "source_rows": 2983,
-        "silver_live": 2877,
+        "source_rows": 5050,
+        "silver_live": 4879,
         "silver_soft_deleted": 0,
-        "matched_exactly": 2600,
-        "latest_change_quarantined": 383,
-        "quarantined_events": 7999
+        "matched_exactly": 4400,
+        "latest_change_quarantined": 650,
+        "quarantined_events": 14472
       },
       "orders": {
-        "source_rows": 36977,
-        "silver_live": 35834,
-        "silver_soft_deleted": 14884,
-        "matched_exactly": 35834,
-        "latest_change_quarantined": 1143,
-        "quarantined_events": 3362
+        "source_rows": 61093,
+        "silver_live": 59204,
+        "silver_soft_deleted": 27213,
+        "matched_exactly": 59204,
+        "latest_change_quarantined": 1889,
+        "quarantined_events": 8132
       },
       "dim_customers_scd2": {
-        "versions": 43599,
-        "current": 11922,
-        "valid_customer_events": 43599
+        "versions": 74312,
+        "current": 20274,
+        "valid_customer_events": 74312
       },
-      "quarantine_rows": 12541
+      "quarantine_rows": 24710
     }
   },
   {
@@ -49,44 +49,44 @@
     "fault": "driver exits at `before_scd2` inside a batch",
     "recovery": "same batch id replayed on restart",
     "ok": true,
-    "reconcile_s": 15.170405041000777,
-    "bronze_rows": 254784,
-    "duplicates": 67,
+    "reconcile_s": 16.248867333000817,
+    "bronze_rows": 510136,
+    "duplicates": 250,
     "failures": [],
     "facts": {
-      "kafka_messages": 254784,
-      "bronze_rows": 254784,
-      "duplicate_change_events_absorbed": 67,
+      "kafka_messages": 510136,
+      "bronze_rows": 510136,
+      "duplicate_change_events_absorbed": 250,
       "customers": {
-        "source_rows": 12457,
-        "silver_live": 12194,
-        "silver_soft_deleted": 2983,
-        "matched_exactly": 12080,
-        "latest_change_quarantined": 377,
-        "quarantined_events": 1202
+        "source_rows": 20975,
+        "silver_live": 20543,
+        "silver_soft_deleted": 5030,
+        "matched_exactly": 20349,
+        "latest_change_quarantined": 626,
+        "quarantined_events": 2134
       },
       "products": {
-        "source_rows": 3046,
-        "silver_live": 2935,
+        "source_rows": 5113,
+        "silver_live": 4937,
         "silver_soft_deleted": 0,
-        "matched_exactly": 2650,
-        "latest_change_quarantined": 396,
-        "quarantined_events": 8202
+        "matched_exactly": 4451,
+        "latest_change_quarantined": 662,
+        "quarantined_events": 14701
       },
       "orders": {
-        "source_rows": 37727,
-        "silver_live": 36576,
-        "silver_soft_deleted": 15376,
-        "matched_exactly": 36576,
-        "latest_change_quarantined": 1151,
-        "quarantined_events": 3394
+        "source_rows": 61716,
+        "silver_live": 59824,
+        "silver_soft_deleted": 27832,
+        "matched_exactly": 59824,
+        "latest_change_quarantined": 1892,
+        "quarantined_events": 8170
       },
       "dim_customers_scd2": {
-        "versions": 44644,
-        "current": 12194,
-        "valid_customer_events": 44644
+        "versions": 75351,
+        "current": 20543,
+        "valid_customer_events": 75351
       },
-      "quarantine_rows": 12798
+      "quarantine_rows": 25005
     }
   },
   {
@@ -94,44 +94,44 @@
     "fault": "driver exits at `after_silver` inside a batch",
     "recovery": "same batch id replayed on restart",
     "ok": true,
-    "reconcile_s": 16.305219833000592,
-    "bronze_rows": 259781,
-    "duplicates": 67,
+    "reconcile_s": 17.787098583001352,
+    "bronze_rows": 515134,
+    "duplicates": 250,
     "failures": [],
     "facts": {
-      "kafka_messages": 259781,
-      "bronze_rows": 259781,
-      "duplicate_change_events_absorbed": 67,
+      "kafka_messages": 515134,
+      "bronze_rows": 515134,
+      "duplicate_change_events_absorbed": 250,
       "customers": {
-        "source_rows": 12751,
-        "silver_live": 12483,
-        "silver_soft_deleted": 3045,
-        "matched_exactly": 12362,
-        "latest_change_quarantined": 389,
-        "quarantined_events": 1236
+        "source_rows": 21269,
+        "silver_live": 20831,
+        "silver_soft_deleted": 5091,
+        "matched_exactly": 20631,
+        "latest_change_quarantined": 638,
+        "quarantined_events": 2166
       },
       "products": {
-        "source_rows": 3110,
-        "silver_live": 2997,
+        "source_rows": 5177,
+        "silver_live": 4999,
         "silver_soft_deleted": 0,
-        "matched_exactly": 2711,
-        "latest_change_quarantined": 399,
-        "quarantined_events": 8420
+        "matched_exactly": 4512,
+        "latest_change_quarantined": 665,
+        "quarantined_events": 14893
       },
       "orders": {
-        "source_rows": 38654,
-        "silver_live": 37487,
-        "silver_soft_deleted": 15737,
-        "matched_exactly": 37487,
-        "latest_change_quarantined": 1167,
-        "quarantined_events": 3437
+        "source_rows": 62606,
+        "silver_live": 60691,
+        "silver_soft_deleted": 28223,
+        "matched_exactly": 60691,
+        "latest_change_quarantined": 1915,
+        "quarantined_events": 8211
       },
       "dim_customers_scd2": {
-        "versions": 45683,
-        "current": 12483,
-        "valid_customer_events": 45683
+        "versions": 76386,
+        "current": 20831,
+        "valid_customer_events": 76386
       },
-      "quarantine_rows": 13093
+      "quarantine_rows": 25270
     }
   },
   {
@@ -139,44 +139,44 @@
     "fault": "driver exits at `after_quarantine` inside a batch",
     "recovery": "same batch id replayed on restart",
     "ok": true,
-    "reconcile_s": 15.503902249998646,
-    "bronze_rows": 264841,
-    "duplicates": 67,
+    "reconcile_s": 9.681084499999997,
+    "bronze_rows": 520035,
+    "duplicates": 250,
     "failures": [],
     "facts": {
-      "kafka_messages": 264841,
-      "bronze_rows": 264841,
-      "duplicate_change_events_absorbed": 67,
+      "kafka_messages": 520035,
+      "bronze_rows": 520035,
+      "duplicate_change_events_absorbed": 250,
       "customers": {
-        "source_rows": 13028,
-        "silver_live": 12757,
-        "silver_soft_deleted": 3124,
-        "matched_exactly": 12636,
-        "latest_change_quarantined": 392,
-        "quarantined_events": 1268
+        "source_rows": 21546,
+        "silver_live": 21099,
+        "silver_soft_deleted": 5170,
+        "matched_exactly": 20902,
+        "latest_change_quarantined": 644,
+        "quarantined_events": 2193
       },
       "products": {
-        "source_rows": 3190,
-        "silver_live": 3074,
+        "source_rows": 5257,
+        "silver_live": 5076,
         "silver_soft_deleted": 0,
-        "matched_exactly": 2781,
-        "latest_change_quarantined": 409,
-        "quarantined_events": 8637
+        "matched_exactly": 4581,
+        "latest_change_quarantined": 676,
+        "quarantined_events": 15110
       },
       "orders": {
-        "source_rows": 39395,
-        "silver_live": 38199,
-        "silver_soft_deleted": 16239,
-        "matched_exactly": 38199,
-        "latest_change_quarantined": 1196,
-        "quarantined_events": 3487
+        "source_rows": 63527,
+        "silver_live": 61579,
+        "silver_soft_deleted": 28545,
+        "matched_exactly": 61579,
+        "latest_change_quarantined": 1948,
+        "quarantined_events": 8263
       },
       "dim_customers_scd2": {
-        "versions": 46711,
-        "current": 12757,
-        "valid_customer_events": 46711
+        "versions": 77419,
+        "current": 21099,
+        "valid_customer_events": 77419
       },
-      "quarantine_rows": 13392
+      "quarantine_rows": 25566
     }
   },
   {
@@ -184,44 +184,44 @@
     "fault": "SIGKILL of the broker, down 25 s",
     "recovery": "broker restarted; Debezium RUNNING after 8s; Spark Kafka source retried in place",
     "ok": true,
-    "reconcile_s": 14.872800625002128,
-    "bronze_rows": 272724,
-    "duplicates": 67,
+    "reconcile_s": 17.550547417002235,
+    "bronze_rows": 527750,
+    "duplicates": 250,
     "failures": [],
     "facts": {
-      "kafka_messages": 272724,
-      "bronze_rows": 272724,
-      "duplicate_change_events_absorbed": 67,
+      "kafka_messages": 527750,
+      "bronze_rows": 527750,
+      "duplicate_change_events_absorbed": 250,
       "customers": {
-        "source_rows": 13481,
-        "silver_live": 13202,
-        "silver_soft_deleted": 3232,
-        "matched_exactly": 13080,
-        "latest_change_quarantined": 401,
-        "quarantined_events": 1315
+        "source_rows": 21999,
+        "silver_live": 21542,
+        "silver_soft_deleted": 5278,
+        "matched_exactly": 21340,
+        "latest_change_quarantined": 659,
+        "quarantined_events": 2231
       },
       "products": {
-        "source_rows": 3298,
-        "silver_live": 3181,
+        "source_rows": 5365,
+        "silver_live": 5183,
         "silver_soft_deleted": 0,
-        "matched_exactly": 2870,
-        "latest_change_quarantined": 428,
-        "quarantined_events": 8982
+        "matched_exactly": 4672,
+        "latest_change_quarantined": 693,
+        "quarantined_events": 15451
       },
       "orders": {
-        "source_rows": 40650,
-        "silver_live": 39412,
-        "silver_soft_deleted": 16951,
-        "matched_exactly": 39412,
-        "latest_change_quarantined": 1238,
-        "quarantined_events": 3558
+        "source_rows": 64925,
+        "silver_live": 62934,
+        "silver_soft_deleted": 29114,
+        "matched_exactly": 62934,
+        "latest_change_quarantined": 1991,
+        "quarantined_events": 8336
       },
       "dim_customers_scd2": {
-        "versions": 48360,
-        "current": 13202,
-        "valid_customer_events": 48360
+        "versions": 79077,
+        "current": 21542,
+        "valid_customer_events": 79077
       },
-      "quarantine_rows": 13855
+      "quarantine_rows": 26018
     }
   },
   {
@@ -229,44 +229,44 @@
     "fault": "SIGKILL of Connect/Debezium, down 15 s",
     "recovery": "connector resumed from stored offsets, RUNNING after 0s",
     "ok": true,
-    "reconcile_s": 15.588837582999986,
-    "bronze_rows": 279547,
-    "duplicates": 250,
+    "reconcile_s": 17.639741292001418,
+    "bronze_rows": 534437,
+    "duplicates": 313,
     "failures": [],
     "facts": {
-      "kafka_messages": 279547,
-      "bronze_rows": 279547,
-      "duplicate_change_events_absorbed": 250,
+      "kafka_messages": 534437,
+      "bronze_rows": 534437,
+      "duplicate_change_events_absorbed": 313,
       "customers": {
-        "source_rows": 13840,
-        "silver_live": 13555,
-        "silver_soft_deleted": 3332,
-        "matched_exactly": 13428,
-        "latest_change_quarantined": 412,
-        "quarantined_events": 1352
+        "source_rows": 22358,
+        "silver_live": 21893,
+        "silver_soft_deleted": 5378,
+        "matched_exactly": 21687,
+        "latest_change_quarantined": 671,
+        "quarantined_events": 2268
       },
       "products": {
-        "source_rows": 3394,
-        "silver_live": 3272,
+        "source_rows": 5461,
+        "silver_live": 5274,
         "silver_soft_deleted": 0,
-        "matched_exactly": 2953,
-        "latest_change_quarantined": 441,
-        "quarantined_events": 9309
+        "matched_exactly": 4757,
+        "latest_change_quarantined": 704,
+        "quarantined_events": 15778
       },
       "orders": {
-        "source_rows": 41789,
-        "silver_live": 40498,
-        "silver_soft_deleted": 17463,
-        "matched_exactly": 40498,
-        "latest_change_quarantined": 1291,
-        "quarantined_events": 3632
+        "source_rows": 66044,
+        "silver_live": 64005,
+        "silver_soft_deleted": 29646,
+        "matched_exactly": 64005,
+        "latest_change_quarantined": 2039,
+        "quarantined_events": 8419
       },
       "dim_customers_scd2": {
-        "versions": 49739,
-        "current": 13555,
-        "valid_customer_events": 49739
+        "versions": 80456,
+        "current": 21893,
+        "valid_customer_events": 80456
       },
-      "quarantine_rows": 14293
+      "quarantine_rows": 26465
     }
   },
   {
@@ -274,44 +274,44 @@
     "fault": "SIGKILL of Postgres between two load phases, down 10 s",
     "recovery": "crash recovery; Debezium state RUNNING/RUNNING after 0s",
     "ok": true,
-    "reconcile_s": 16.05837758299822,
-    "bronze_rows": 285031,
-    "duplicates": 250,
+    "reconcile_s": 17.72839749999912,
+    "bronze_rows": 539863,
+    "duplicates": 313,
     "failures": [],
     "facts": {
-      "kafka_messages": 285031,
-      "bronze_rows": 285031,
-      "duplicate_change_events_absorbed": 250,
+      "kafka_messages": 539863,
+      "bronze_rows": 539863,
+      "duplicate_change_events_absorbed": 313,
       "customers": {
-        "source_rows": 14158,
-        "silver_live": 13854,
-        "silver_soft_deleted": 3396,
-        "matched_exactly": 13720,
-        "latest_change_quarantined": 438,
-        "quarantined_events": 1403
+        "source_rows": 22676,
+        "silver_live": 22191,
+        "silver_soft_deleted": 5442,
+        "matched_exactly": 21981,
+        "latest_change_quarantined": 695,
+        "quarantined_events": 2312
       },
       "products": {
-        "source_rows": 3494,
-        "silver_live": 3370,
+        "source_rows": 5561,
+        "silver_live": 5372,
         "silver_soft_deleted": 0,
-        "matched_exactly": 3042,
-        "latest_change_quarantined": 452,
-        "quarantined_events": 9542
+        "matched_exactly": 4847,
+        "latest_change_quarantined": 714,
+        "quarantined_events": 16012
       },
       "orders": {
-        "source_rows": 42770,
-        "silver_live": 41447,
-        "silver_soft_deleted": 17853,
-        "matched_exactly": 41447,
-        "latest_change_quarantined": 1323,
-        "quarantined_events": 3684
+        "source_rows": 67056,
+        "silver_live": 64981,
+        "silver_soft_deleted": 30005,
+        "matched_exactly": 64981,
+        "latest_change_quarantined": 2075,
+        "quarantined_events": 8475
       },
       "dim_customers_scd2": {
-        "versions": 50892,
-        "current": 13854,
-        "valid_customer_events": 50892
+        "versions": 81616,
+        "current": 22191,
+        "valid_customer_events": 81616
       },
-      "quarantine_rows": 14629
+      "quarantine_rows": 26799
     }
   }
 ]

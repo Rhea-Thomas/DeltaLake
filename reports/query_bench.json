@@ -1,0 +1,172 @@
+{
+  "before": {
+    "at": "2026-11-11 03:33 UTC",
+    "params": {
+      "t_lo": 1794364685179,
+      "t_hi": 1794366485179,
+      "customer_id": 140,
+      "date_key": 20261111
+    },
+    "files": {
+      "bronze": 2846,
+      "silver.orders": 4,
+      "scd2": 4,
+      "quarantine": 341,
+      "gold.fct_orders": 1
+    },
+    "tuning": "",
+    "duckdb": {
+      "bronze_scan": {
+        "ms": 154.9,
+        "result": "[('customers', 'c', 24337), ('customers', 'd', 4753), ('customers', 'r', 300), ('customers', 'u', 44010), ('orders', 'c'"
+      },
+      "bronze_window": {
+        "ms": 121.8,
+        "result": "[(153649, 269906664)]"
+      },
+      "silver_orders_agg": {
+        "ms": 4.3,
+        "result": "[('cancelled', 3412, Decimal('2050844.36')), ('delivered', 2318, Decimal('1437934.83')), ('paid', 10566, Decimal('647763"
+      },
+      "silver_orders_customer": {
+        "ms": 3.7,
+        "result": "[(83, Decimal('45539.85'))]"
+      },
+      "scd2_point_in_time": {
+        "ms": 3.5,
+        "result": "[(51, datetime.datetime(2026, 11, 11, 3, 0, 38, 296000, tzinfo=<UTC>))]"
+      },
+      "quarantine_reasons": {
+        "ms": 19.0,
+        "result": "[('customers', 2018), ('orders', 7985), ('products', 13793)]"
+      },
+      "gold_star_join": {
+        "ms": 8.7,
+        "result": "[(2026, 11, 'free', 'beauty', Decimal('1561022.61')), (2026, 11, 'free', 'books', Decimal('1522033.33')), (2026, 11, 'fr"
+      },
+      "gold_one_day": {
+        "ms": 1.4,
+        "result": "[(56706, Decimal('34437928.08'))]"
+      }
+    },
+    "trino": {
+      "bronze_scan": {
+        "ms": 317.8,
+        "result": "[['customers', 'c', 24337], ['customers', 'd', 4753], ['customers', 'r', 300], ['customers', 'u', 44010], ['orders', 'c'"
+      },
+      "bronze_window": {
+        "ms": 117.5,
+        "result": "[[153649, 269906664]]"
+      },
+      "silver_orders_agg": {
+        "ms": 27.5,
+        "result": "[['cancelled', 3412, Decimal('2050844.36')], ['delivered', 2318, Decimal('1437934.83')], ['paid', 10566, Decimal('647763"
+      },
+      "silver_orders_customer": {
+        "ms": 31.1,
+        "result": "[[83, Decimal('45539.85')]]"
+      },
+      "scd2_point_in_time": {
+        "ms": 20.0,
+        "result": "[[51, datetime.datetime(2026, 11, 11, 3, 0, 38, 296000, tzinfo=zoneinfo.ZoneInfo(key='UTC'))]]"
+      },
+      "quarantine_reasons": {
+        "ms": 61.6,
+        "result": "[['customers', 2018], ['orders', 7985], ['products', 13793]]"
+      },
+      "gold_star_join": {
+        "ms": 69.9,
+        "result": "[[2026, 11, 'free', 'beauty', Decimal('1561022.61')], [2026, 11, 'free', 'books', Decimal('1522033.33')], [2026, 11, 'fr"
+      },
+      "gold_one_day": {
+        "ms": 16.5,
+        "result": "[[56706, Decimal('34437928.08')]]"
+      }
+    }
+  },
+  "after": {
+    "at": "2026-11-11 03:40 UTC",
+    "params": {
+      "t_lo": 1794364685179,
+      "t_hi": 1794366485179,
+      "customer_id": 140,
+      "date_key": 20261111
+    },
+    "files": {
+      "bronze": 3,
+      "silver.orders": 1,
+      "scd2": 1,
+      "quarantine": 1,
+      "gold.fct_orders": 1
+    },
+    "tuning": "bronze re-partitioned by (source_table, event_date); OPTIMIZE compaction on all Spark-written tables; Z-ORDER BY customer_id on silver orders/customers and SCD2, product_id on products; gold fct_orders partitioned by order_date (dbt); VACUUM (7-day retention)",
+    "duckdb": {
+      "bronze_scan": {
+        "ms": 10.5,
+        "result": "[('customers', 'c', 24337), ('customers', 'd', 4753), ('customers', 'r', 300), ('customers', 'u', 44010), ('orders', 'c'"
+      },
+      "bronze_window": {
+        "ms": 11.9,
+        "result": "[(153649, 269906664)]"
+      },
+      "silver_orders_agg": {
+        "ms": 6.1,
+        "result": "[('cancelled', 3412, Decimal('2050844.36')), ('delivered', 2318, Decimal('1437934.83')), ('paid', 10566, Decimal('647763"
+      },
+      "silver_orders_customer": {
+        "ms": 5.2,
+        "result": "[(83, Decimal('45539.85'))]"
+      },
+      "scd2_point_in_time": {
+        "ms": 5.0,
+        "result": "[(51, datetime.datetime(2026, 11, 11, 3, 0, 38, 296000, tzinfo=<UTC>))]"
+      },
+      "quarantine_reasons": {
+        "ms": 4.2,
+        "result": "[('customers', 2018), ('orders', 7985), ('products', 13793)]"
+      },
+      "gold_star_join": {
+        "ms": 8.7,
+        "result": "[(2026, 11, 'free', 'beauty', Decimal('1561022.61')), (2026, 11, 'free', 'books', Decimal('1522033.33')), (2026, 11, 'fr"
+      },
+      "gold_one_day": {
+        "ms": 1.4,
+        "result": "[(56706, Decimal('34437928.08'))]"
+      }
+    },
+    "trino": {
+      "bronze_scan": {
+        "ms": 29.8,
+        "result": "[['customers', 'c', 24337], ['customers', 'd', 4753], ['customers', 'r', 300], ['customers', 'u', 44010], ['orders', 'c'"
+      },
+      "bronze_window": {
+        "ms": 21.5,
+        "result": "[[153649, 269906664]]"
+      },
+      "silver_orders_agg": {
+        "ms": 21.6,
+        "result": "[['cancelled', 3412, Decimal('2050844.36')], ['delivered', 2318, Decimal('1437934.83')], ['paid', 10566, Decimal('647763"
+      },
+      "silver_orders_customer": {
+        "ms": 17.9,
+        "result": "[[83, Decimal('45539.85')]]"
+      },
+      "scd2_point_in_time": {
+        "ms": 19.8,
+        "result": "[[51, datetime.datetime(2026, 11, 11, 3, 0, 38, 296000, tzinfo=zoneinfo.ZoneInfo(key='UTC'))]]"
+      },
+      "quarantine_reasons": {
+        "ms": 25.8,
+        "result": "[['customers', 2018], ['orders', 7985], ['products', 13793]]"
+      },
+      "gold_star_join": {
+        "ms": 61.5,
+        "result": "[[2026, 11, 'free', 'beauty', Decimal('1561022.61')], [2026, 11, 'free', 'books', Decimal('1522033.33')], [2026, 11, 'fr"
+      },
+      "gold_one_day": {
+        "ms": 15.6,
+        "result": "[[56706, Decimal('34437928.08')]]"
+      }
+    }
+  }
+}

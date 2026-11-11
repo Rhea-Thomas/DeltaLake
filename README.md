@@ -9,8 +9,11 @@ through **Kafka**, and processes it with **PySpark Structured Streaming** into
 * **quarantine**: invalid records, each with the reason it failed;
 * **SCD Type 2** customer history.
 
-The tables are then queried with plain SQL from **DuckDB**, with no Spark
-involved. The design follows the Delta Lake lakehouse architecture
+The same Delta tables are queried with plain SQL from two engines that never
+touch Spark: **DuckDB** (in-process) and **Trino** (distributed SQL with a
+catalog). The two agree exactly. A failure-injection suite crashes each
+component under load and proves the lake still reconciles exactly with
+Postgres. The design follows the Delta Lake lakehouse architecture
 (Armbrust et al., VLDB 2020).
 
 ## Measured results
@@ -21,34 +24,74 @@ in `local[4]` mode, and the lake on local disk. Full report in
 
 | Metric | Result |
 |---|---|
-| **End-to-end latency**, Postgres commit → queryable in silver + SCD2 (100 actions/s, 16.5k events) | p50 **12.8 s**, p95 17.2 s, max 20.1 s |
-| ...of which Postgres → Kafka (Debezium) | p50 0.48 s, p95 0.85 s |
-| ...of which Postgres → bronze micro-batch | p50 1.4 s, p95 2.6 s |
-| Silver micro-batch duration (validate + 4 MERGEs + quarantine) | p50 6.6 s, p95 9.0 s |
-| **Throughput**, one 27,825-row transaction | fully in silver 5.5 s after commit, **≈5,000 events/s** |
-| Throughput, unthrottled generator for 60 s | 603 events/s end to end, capped by the generator (669 events/s); pipeline caught up 6.6 s after load stopped |
-| **Reconciliation** after 196,159 change events | **exact**: Kafka messages = bronze rows = 196,159, unique offsets; every valid source row identical in silver; every invalid latest change in quarantine; SCD2 current = silver |
-| Restart (graceful stop, 3,000 writes while down, restart) | resumed from checkpoints, reconciled exactly |
-| Unit tests | 44 passing (CI on GitHub Actions) |
+| **End-to-end latency**, Postgres commit → queryable in silver + SCD2 (100 actions/s, 16.6k events) | p50 **13.0 s**, p95 16.8 s, max 18.7 s |
+| ...of which Postgres → Kafka (Debezium) | p50 0.49 s, p95 0.85 s |
+| ...of which Postgres → bronze micro-batch | p50 1.4 s, p95 2.7 s |
+| Silver micro-batch duration (validate + 4 MERGEs + quarantine MERGE) | p50 6.8 s, p95 8.2 s |
+| **Throughput**, one 58,510-row transaction | fully in silver 6.7 s after commit, **≈8,700 events/s** |
+| Throughput, unthrottled generator for 60 s | 443 events/s end to end, capped by the generator (508 events/s); caught up 8.8 s after load stopped |
+| **Reconciliation** after 490,432 change events | **exact**: Kafka messages = bronze rows, unique offsets; every valid source row identical in silver; every invalid latest change in quarantine; SCD2 current = silver |
+| **Failure injection**, 7 scenarios (below) | **7/7 recovered and reconciled exactly** |
+| **Full replay**: empty lake rebuilt from Kafka offset 0 (~243k events) | reconciled exactly in 33 s |
+| **Trino vs DuckDB**, 11 aggregates over the same tables | identical, including revenue to the cent |
+| Unit tests | 48 passing (CI on GitHub Actions) |
 
 Row counts after the benchmark:
 
 | Table | Rows |
 |---|---|
-| bronze `cdc_events` | 196,159 |
-| silver `customers` / `products` / `orders` (live) | 9,033 / 2,159 / 26,942 |
-| silver `dim_customers_scd2` | 32,499 versions, 9,033 current |
-| quarantine `cdc_rejects` | 9,574 |
+| bronze `cdc_events` | 490,432 |
+| silver `customers` / `products` / `orders` (live) | 19,466 / 4,691 / 56,706 |
+| silver `dim_customers_scd2` | 71,343 versions, 19,466 current |
+| quarantine `cdc_rejects` | 23,796 |
 
 **What the numbers mean.** Debezium and Kafka add under 1 s. Most of the
-latency is the silver micro-batch. Each batch costs about 6–9 s of mostly fixed
+latency is the silver micro-batch. Each batch costs about 7–8 s of mostly fixed
 overhead, whether it holds 30 events or 15,000: it runs four Delta MERGEs, an
-SCD2 history rebuild and a quarantine append, each with its own Spark jobs and
+SCD2 history rebuild and a quarantine MERGE, each with its own Spark jobs and
 Delta commit on a single machine. A change that arrives just after a batch
-starts waits for that batch and the next one. Running the three tables
-concurrently in driver threads cut p50 from 17.0 s to 12.8 s.
-Seconds-level freshness suits analytics, but this setup is not sub-second
-(see Limitations).
+starts waits for that batch and the next one.
+
+Two changes moved the number:
+* Running the three tables concurrently cut p50 from 17.0 s to 12.8 s.
+* Making quarantine a MERGE, to fix a bug the failure tests found, cost back
+  about 0.2 s.
+
+Big transactions amortise the fixed cost, hence about 8,700 events/s for a bulk
+update. Seconds-level freshness suits analytics, but this setup is not
+sub-second (see Limitations).
+
+### Failure injection
+
+`make failure` runs each scenario under live load, injects the fault, lets the
+system recover, then requires the exact reconciliation to pass
+([`reports/FAILURE_TESTS.md`](reports/FAILURE_TESTS.md)).
+
+| Scenario | Fault | Recovery | Result |
+|---|---|---|---|
+| Spark driver killed | `SIGKILL` mid-stream, down 10 s | restart resumes from checkpoints | reconciled exactly |
+| Crash `before_scd2` | driver hard-exits after the silver MERGE, before SCD2 | same batch replayed | reconciled exactly |
+| Crash `after_silver` | hard exit after all MERGEs, before quarantine | same batch replayed | reconciled exactly |
+| Crash `after_quarantine` | hard exit after every write, before Spark marks the batch done | same batch replayed, no-op | reconciled exactly |
+| Kafka broker killed | `SIGKILL`, down 25 s | Debezium back to RUNNING 8 s after the broker; Spark's Kafka source retried in place | reconciled exactly |
+| Kafka Connect killed | `SIGKILL`, down 15 s | Debezium resumed from stored offsets and re-published 183 changes, all absorbed | reconciled exactly |
+| Postgres crashed | `SIGKILL`, crash recovery | replication slot survived; Debezium continued | reconciled exactly |
+
+Crash points inside a batch use a test-only hook (`FAULT_INJECT=<point>@<batch>`
+makes the driver `os._exit(137)` there), because a random kill rarely lands
+between two writes of the same batch.
+
+**Bugs the suite found, now fixed:**
+
+1. **Quarantine stored duplicates after a Connect crash.** Debezium is
+   at-least-once and re-published some changes into a *later* batch. Silver and
+   SCD2 were safe, being keyed by LSN, but quarantine's `txnAppId`/`txnVersion`
+   guard only deduplicates replays of the *same* batch. It is now an
+   insert-only MERGE on `(table, key, LSN)`, with a regression test.
+2. **Debezium sat UNASSIGNED for up to 5 minutes after a Kafka outage.**
+   Kafka Connect's cooperative rebalancing waits
+   `scheduled.rebalance.max.delay.ms` (default 5 min) before reassigning a lost
+   worker's tasks. It is now 10 s for this single-worker setup.
 
 Reproduce with `make measure` while the pipeline runs (raw data: `reports/results.json`).
 
@@ -70,6 +113,7 @@ flowchart LR
         Q[("quarantine<br/>cdc_rejects")]
     end
     DD["DuckDB<br/>delta_scan + SQL"]
+    TR["Trino 465<br/>Delta Lake connector"]
 
     PG -- WAL --> DBZ -- "JSON change events<br/>keyed by PK" --> K --> B --> BR --> S
     S -- valid, latest by LSN --> SV
@@ -79,6 +123,10 @@ flowchart LR
     SC --> DD
     Q --> DD
     BR --> DD
+    SV --> TR
+    SC --> TR
+    Q --> TR
+    BR --> TR
 ```
 
 | Stage | What happens | Guarantee |
@@ -88,7 +136,7 @@ flowchart LR
 | Kafka → bronze | Raw message + Kafka coordinates, partitioned by table | Exactly-once (checkpoint + Delta sink) |
 | bronze → silver | Validate, quarantine rejects, MERGE latest change per key by **LSN** | Idempotent, so replays and duplicates are no-ops |
 | silver → SCD2 | Rebuild touched keys' version chains by LSN, MERGE on (key, LSN) | Handles updates, deletes, duplicates, out-of-order |
-| DuckDB | `delta_scan()` over the same files | Plain SQL, no Spark |
+| DuckDB / Trino | Read the Delta log and Parquet files directly | Plain SQL, no Spark; both engines agree exactly |
 
 ## Quick start
 
@@ -101,14 +149,17 @@ make stream      # terminal 1: Spark pipeline (resumes from checkpoints on resta
 make generate    # terminal 2: workload (RATE=50 DURATION=120 by default)
 make reconcile   # Delta tables vs Postgres, exact
 make query       # example DuckDB SQL in queries/
+make trino-query # Trino SQL in queries/trino/ (incl. time travel)
+make trino-check # same 11 aggregates on Trino and DuckDB must match
 make measure     # latency / throughput / row counts -> reports/RESULTS.md
 make test        # unit tests, no Docker needed
-make e2e         # end-to-end reconciliation test
+make e2e         # end-to-end reconciliation + cross-engine tests
+make failure     # failure-injection suite (stop `make stream` first), ~10 min
 make demo        # up + pipeline in background + workload + reconcile + queries
 make clean       # stop containers, delete volumes and the local lake
 ```
 
-Ports: Postgres `5433`, Kafka `9092`, Kafka Connect `8083`.
+Ports: Postgres `5433`, Kafka `9092`, Kafka Connect `8083`, Trino `8080`.
 
 ## What's inside
 
@@ -128,10 +179,14 @@ app. *bronze* (Kafka → Delta, 1 s trigger) and *silver* (bronze Delta stream �
 
 1. parses the Debezium envelope per table;
 2. evaluates the data-quality rules;
-3. appends rejects to quarantine (idempotent via `txnAppId`/`txnVersion`);
+3. writes rejects to quarantine (insert-only MERGE on table, key and LSN);
 4. MERGEs valid changes into silver, keeping the latest per key by LSN and
    updating only when the incoming LSN is higher (soft deletes);
 5. MERGEs into SCD2.
+
+The three tables run concurrently in driver threads. In supervise mode (the
+local default), a failed query is restarted from its checkpoints with
+exponential backoff.
 
 **Data quality** (`src/lakehouse/quality.py`): named rules per table, such as
 email format, ISO-2 country, allowed tier and status, non-negative price,
@@ -149,6 +204,12 @@ of the history by recomputing the version chain, rather than by
 activity, revenue by country, top products, order funnel, **revenue by the
 tier customers had at order time** (a point-in-time join against SCD2), **customer
 as of a timestamp**, most-changed customers, and quarantine reasons.
+
+**Trino** (`src/lakehouse/trino_query.py`, `queries/trino/`, `trino/catalog/`)
+reads the same files through its Delta Lake connector. Tables are registered,
+not copied, into a file-based metastore with `system.register_table`. The
+queries include the SCD2 point-in-time join and Delta time travel
+(`FOR VERSION AS OF`).
 
 ```bash
 make query
@@ -170,6 +231,9 @@ make query
   - every row whose latest change is invalid is in quarantine;
   - no quarantined change is in silver;
   - SCD2 current rows equal silver, and its intervals chain.
+* `tests/e2e/test_cross_engine.py`: Trino and DuckDB return identical
+  aggregates.
+* `tests/failure/` (`make failure`): the 7 failure-injection scenarios above.
 
 ## Design notes
 
@@ -180,9 +244,12 @@ make query
   cannot resurrect it.
 * **Bronze is raw text**, so it never fails on bad data and can be replayed
   into silver after a rule change.
-* **Portable to Databricks**: transformations are plain DataFrame functions,
-  `get_spark()` reuses an existing session, and all paths come from `LAKE_ROOT`
-  and other environment variables.
+* **Databricks**: [`databricks.yml`](databricks.yml) is an Asset Bundle that
+  builds the package as a wheel and runs the same pipeline as a continuous job
+  on DBR 15.4 LTS (Spark 3.5). `get_spark()` uses the cluster session there,
+  and Kafka auth options come from `KAFKA_OPTIONS_JSON`. **This bundle has not
+  been deployed**: it needs a workspace and a Kafka the workspace can reach.
+  See [`databricks/README.md`](databricks/README.md).
 
 ## Limitations
 
@@ -200,16 +267,12 @@ make query
   negative, every later stock update to that row also fails `price_non_negative`
   until the price is fixed. That is the correct behaviour, but it inflates the
   quarantine count.
-* **Restart was tested only as a graceful stop.** Crash and kill tests of each
-  component are Part 2.
+* **Failure tests show recovery, not high availability.** With one broker and
+  one Connect worker every fault is an outage, and recovery is what is tested.
+  Network partitions, full disks and slow consumers are not covered.
+* **Databricks is defined, not run** (see above).
 * **Latency mixes two clocks** (Postgres VM vs host). The skew was measured and
   is ≤5 ms.
-
-## Roadmap (Part 2)
-
-Not built yet: Trino as a second SQL engine over the same Delta tables,
-failure-injection tests that crash Kafka, Connect or Spark mid-stream and
-verify recovery, and a Databricks deployment.
 
 ## Reference
 

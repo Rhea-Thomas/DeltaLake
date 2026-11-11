@@ -9,3 +9,7 @@ derby.log
 .ivy2/
 reports/raw/
 .DS_Store
+dist/
+build/
+*.egg-info/
+.databricks/

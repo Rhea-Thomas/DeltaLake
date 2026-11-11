@@ -23,6 +23,7 @@ import json
 import os
 import signal
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
@@ -85,23 +86,29 @@ def process_silver_batch(batch: DataFrame, batch_id: int) -> None:
         if not events:
             return
 
-        rejects = []
-        counts = {}
-        for spec in TABLES.values():
+        def process_table(spec):
+            # Each table writes only its own Delta tables, so the three tables
+            # run concurrently as independent Spark jobs from driver threads.
             changes = parse_changes(batch, spec)
             valid, invalid = split_valid_invalid(changes, spec)
             valid = to_typed(valid, spec).persist()
             invalid = invalid.persist()
-            n_valid, n_invalid = valid.count(), invalid.count()
-            counts[spec.name] = {"valid": n_valid, "invalid": n_invalid}
-            if n_invalid:
-                rejects.append(to_quarantine(invalid, spec, batch_id))
-            if n_valid:
-                upsert_current_state(spark, valid, config.silver_path(spec.name), spec)
-                if spec is CUSTOMERS:
-                    apply_scd2(spark, valid, config.SCD2_CUSTOMERS_PATH, spec)
-            valid.unpersist()
-            invalid.unpersist()
+            try:
+                n_valid, n_invalid = valid.count(), invalid.count()
+                if n_valid:
+                    upsert_current_state(spark, valid, config.silver_path(spec.name), spec)
+                    if spec is CUSTOMERS:
+                        apply_scd2(spark, valid, config.SCD2_CUSTOMERS_PATH, spec)
+                reject = to_quarantine(invalid, spec, batch_id).localCheckpoint(eager=True) if n_invalid else None
+                return spec.name, {"valid": n_valid, "invalid": n_invalid}, reject
+            finally:
+                valid.unpersist()
+                invalid.unpersist()
+
+        with ThreadPoolExecutor(max_workers=len(TABLES)) as pool:
+            results = list(pool.map(process_table, TABLES.values()))
+        counts = {name: c for name, c, _ in results}
+        rejects = [r for _, _, r in results if r is not None]
 
         if rejects:
             out = rejects[0]

@@ -12,8 +12,8 @@ Two Structured Streaming queries run in one Spark application:
    after a crash (Spark re-runs the last uncommitted batch id) changes nothing:
      * silver MERGE only applies changes with a higher LSN than stored;
      * SCD2 MERGE is keyed by (key, LSN);
-     * quarantine append uses Delta's idempotent-write options
-       (txnAppId + txnVersion = batch id), so it is skipped if already committed.
+     * quarantine is an insert-only MERGE keyed by (table, key, LSN), so neither
+       a replayed batch nor a change Debezium re-published later adds a row.
 
 Run:  python -m lakehouse.jobs.pipeline
 """
@@ -31,13 +31,30 @@ from pyspark.sql import functions as F
 
 from .. import config
 from ..cdc import kafka_to_bronze, parse_changes, to_typed
-from ..quality import split_valid_invalid, to_quarantine
+from ..quality import split_valid_invalid, to_quarantine, write_quarantine
 from ..scd2 import apply_scd2
 from ..silver import upsert_current_state
 from ..spark_session import get_spark
 from ..tables import CUSTOMERS, TABLES
 
-QUARANTINE_APP_ID = "lakehouse-silver-quarantine"
+FAULT_POINTS = ("before_scd2", "after_silver", "after_quarantine")
+
+
+def _fault(point: str, batch_id: int) -> None:
+    """Failure injection for tests: FAULT_INJECT="<point>@<min_batch_id>".
+
+    Hard-exits the driver (no cleanup, like a kill -9 or a lost node) at a named
+    point *inside* a silver micro-batch, after some of its writes have committed
+    and before Spark has recorded the batch as done. On restart Spark re-runs
+    the same batch id; idempotent writes must make that replay harmless.
+    """
+    spec = os.environ.get("FAULT_INJECT")
+    if not spec:
+        return
+    name, _, at = spec.partition("@")
+    if name == point and batch_id >= int(at or 0):
+        print(f"[fault] crashing at {point} in batch {batch_id}", flush=True)
+        os._exit(137)
 
 
 def start_bronze(spark: SparkSession):
@@ -49,6 +66,7 @@ def start_bronze(spark: SparkSession):
         .option("failOnDataLoss", "true")
         .option("maxOffsetsPerTrigger", config.MAX_OFFSETS_PER_TRIGGER)
         .option("kafka.metadata.max.age.ms", "5000")   # notice new topics quickly
+        .options(**config.kafka_options())
         .load()
     )
     return (
@@ -98,6 +116,7 @@ def process_silver_batch(batch: DataFrame, batch_id: int) -> None:
                 if n_valid:
                     upsert_current_state(spark, valid, config.silver_path(spec.name), spec)
                     if spec is CUSTOMERS:
+                        _fault("before_scd2", batch_id)
                         apply_scd2(spark, valid, config.SCD2_CUSTOMERS_PATH, spec)
                 reject = to_quarantine(invalid, spec, batch_id).localCheckpoint(eager=True) if n_invalid else None
                 return spec.name, {"valid": n_valid, "invalid": n_invalid}, reject
@@ -110,17 +129,14 @@ def process_silver_batch(batch: DataFrame, batch_id: int) -> None:
         counts = {name: c for name, c, _ in results}
         rejects = [r for _, _, r in results if r is not None]
 
+        _fault("after_silver", batch_id)
         if rejects:
             out = rejects[0]
             for r in rejects[1:]:
                 out = out.unionByName(r)
-            (
-                out.write.format("delta").mode("append")
-                .option("txnAppId", QUARANTINE_APP_ID)
-                .option("txnVersion", batch_id)
-                .save(config.QUARANTINE_PATH)
-            )
+            write_quarantine(spark, out, config.QUARANTINE_PATH)
 
+        _fault("after_quarantine", batch_id)
         committed = time.time()
         commit_ms = committed * 1000
         # Snapshot ('r') events carry the snapshot time, not a commit time, so
@@ -166,15 +182,26 @@ def wait_for_bronze_table(spark: SparkSession, timeout_s: int = 120) -> None:
 
 
 def main() -> None:
+    """Run both queries; with supervision (default) restart them after a failure.
+
+    A failed query (for example the Kafka source giving up while the broker is
+    down) is restarted from its checkpoint with exponential backoff. This is
+    the job-retry behaviour a scheduler such as Databricks Jobs provides; the
+    checkpoints and idempotent writes are what make a restart safe.
+    """
     spark = get_spark("lakehouse-pipeline", with_kafka=True)
-    print(f"lake root: {config.LAKE_ROOT}", flush=True)
-    bronze_q = start_bronze(spark)
-    wait_for_bronze_table(spark)
-    silver_q = start_silver(spark)
+    supervise = os.environ.get("PIPELINE_SUPERVISE", "1") == "1"
+    run_seconds = float(os.environ.get("PIPELINE_RUN_SECONDS", "0"))
+    deadline = time.time() + run_seconds if run_seconds else None
+    print(f"lake root: {config.LAKE_ROOT} supervise={supervise}", flush=True)
+
+    queries: list = []
+    stopping = {"flag": False}
 
     def _stop(*_):
+        stopping["flag"] = True
         print("stopping queries...", flush=True)
-        for q in (silver_q, bronze_q):
+        for q in queries:
             try:
                 q.stop()
             except Exception:  # noqa: BLE001
@@ -182,14 +209,41 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
-    if os.environ.get("PIPELINE_RUN_SECONDS"):
-        spark.streams.awaitAnyTermination(int(os.environ["PIPELINE_RUN_SECONDS"]) * 1000)
-        _stop()
-    else:
-        spark.streams.awaitAnyTermination()
-    for q in (bronze_q, silver_q):
-        if q.exception():
-            raise q.exception()
+
+    restarts = 0
+    while not stopping["flag"]:
+        queries[:] = [start_bronze(spark)]
+        wait_for_bronze_table(spark)
+        queries.append(start_silver(spark))
+        print("[pipeline] queries started", flush=True)
+        failure = None
+        try:
+            timeout_ms = int((deadline - time.time()) * 1000) if deadline else None
+            if timeout_ms is None:
+                spark.streams.awaitAnyTermination()
+            elif timeout_ms > 0:
+                spark.streams.awaitAnyTermination(timeout_ms)
+        except Exception as exc:  # StreamingQueryException
+            failure = exc
+        spark.streams.resetTerminated()
+        for q in queries:
+            try:
+                q.stop()
+            except Exception:  # noqa: BLE001
+                pass
+        if stopping["flag"] or (deadline and time.time() >= deadline):
+            break
+        if failure is None:
+            failure = next((q.exception() for q in queries if q.exception()), None)
+        if not supervise:
+            if failure:
+                raise failure
+            break
+        restarts += 1
+        backoff = min(30, 2 ** min(restarts, 5))
+        print(f"[supervisor] query failed ({str(failure).splitlines()[0][:200] if failure else 'terminated'}); "
+              f"restart #{restarts} in {backoff}s from checkpoints", flush=True)
+        time.sleep(backoff)
 
 
 if __name__ == "__main__":

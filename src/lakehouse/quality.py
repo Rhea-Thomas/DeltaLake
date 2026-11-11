@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from pyspark.sql import Column, DataFrame
+from pyspark.sql import Column, DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from .tables import TableSpec
@@ -123,3 +123,23 @@ def to_quarantine(invalid: DataFrame, spec: TableSpec, batch_id: int) -> DataFra
         F.lit(batch_id).cast("long").alias("batch_id"),
         F.current_timestamp().alias("quarantined_at"),
     )
+
+
+QUARANTINE_KEY = ["source_table", "record_key", "lsn"]
+
+
+def write_quarantine(spark: SparkSession, rejects: DataFrame, path: str) -> None:
+    """Insert rejected changes that are not already quarantined.
+
+    Keyed by (source_table, record_key, lsn): one source change, one row.
+    A plain append would be safe against Spark replaying a batch, but not
+    against Debezium re-publishing the same change into a *later* batch (it is
+    at-least-once, e.g. after a Kafka Connect crash). An insert-only MERGE
+    handles both.
+    """
+    from .delta_utils import ensure_table
+
+    rows = rejects.dropDuplicates(QUARANTINE_KEY)
+    target = ensure_table(spark, path, rows.schema)
+    cond = " AND ".join(f"t.{c} <=> s.{c}" for c in QUARANTINE_KEY)
+    target.alias("t").merge(rows.alias("s"), cond).whenNotMatchedInsertAll().execute()

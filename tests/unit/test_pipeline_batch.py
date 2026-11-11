@@ -36,3 +36,13 @@ def test_batch_routes_and_replay_is_idempotent(spark, lake):
     q = read(lake / "quarantine").orderBy("lsn").collect()
     assert [(r["source_table"], r["record_key"]) for r in q] == [("customers", "2"), ("orders", "5")]
     assert q[1]["reason"] == "quantity_positive: quantity='0'"
+
+
+def test_redelivered_invalid_change_in_later_batch_is_quarantined_once(spark, lake):
+    """Debezium is at-least-once: after a Connect crash the same change can
+    arrive again in a later batch. It must not create a second quarantine row."""
+    bad = event("customers", "c", 50, customer(9, email="broken"))
+    pipeline.process_silver_batch(bronze_df(spark, [bad]), 0)
+    pipeline.process_silver_batch(bronze_df(spark, [bad, event("customers", "c", 51, customer(10))]), 1)
+    q = spark.read.format("delta").load(str(lake / "quarantine")).collect()
+    assert [(r["record_key"], r["lsn"]) for r in q] == [("9", 50)]

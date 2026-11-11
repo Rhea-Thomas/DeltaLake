@@ -6,7 +6,7 @@ export PYTHONPATH := src
 export JAVA_HOME ?= $(shell /usr/libexec/java_home -v 17 2>/dev/null || echo /opt/homebrew/opt/openjdk@17)
 export PATH := $(JAVA_HOME)/bin:$(PATH)
 
-.PHONY: help up venv infra seed connector stream generate query trino-query trino-check reconcile measure test e2e failure demo down clean
+.PHONY: help up venv infra seed connector stream generate query trino-query trino-check dbt dbt-venv reconcile measure test e2e failure demo down clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-11s %s\n", $$1, $$2}'
@@ -45,6 +45,16 @@ trino-query: ## run the Trino queries in queries/trino/ (registers the Delta tab
 
 trino-check: ## same aggregates on Trino and DuckDB must match exactly
 	$(PY) -m lakehouse.trino_query --check
+
+dbt-venv: .venv-dbt/.installed
+.venv-dbt/.installed: requirements-dbt.txt
+	python3.11 -m venv .venv-dbt
+	.venv-dbt/bin/pip install -q -r requirements-dbt.txt
+	touch $@
+
+dbt: dbt-venv ## build the gold star schema with dbt on Trino and run all dbt tests
+	$(PY) -m lakehouse.trino_query --register
+	cd dbt && ../.venv-dbt/bin/dbt build --profiles-dir .
 
 reconcile: ## check Delta tables against source Postgres
 	$(PY) -m lakehouse.reconcile

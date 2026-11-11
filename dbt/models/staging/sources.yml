@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: lakehouse
+    description: Silver and SCD2 Delta tables written by the Spark streaming pipeline, registered in Trino.
+    database: lake
+    schema: lakehouse
+    loaded_at_field: _source_ts
+    freshness:
+      warn_after: {count: 15, period: minute}
+      error_after: {count: 60, period: minute}
+    tables:
+      - name: silver_orders_all
+        description: Current state per order (soft-deleted rows included).
+      - name: silver_products_all
+        description: Current state per product.
+      - name: silver_customers_all
+        description: Current state per customer.
+      - name: dim_customers_scd2
+        description: Every valid version of every customer (SCD Type 2).
+        loaded_at_field: valid_from

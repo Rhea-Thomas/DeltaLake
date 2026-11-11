@@ -13,3 +13,6 @@ dist/
 build/
 *.egg-info/
 .databricks/
+.venv-dbt/
+.venv-airflow/
+airflow/airflow-home/

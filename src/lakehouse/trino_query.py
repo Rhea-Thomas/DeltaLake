@@ -9,6 +9,7 @@ Usage:
     python -m lakehouse.trino_query                  # register tables, run queries/trino/*.sql
     python -m lakehouse.trino_query --sql "SELECT count(*) FROM customers"
     python -m lakehouse.trino_query --check          # compare aggregates with DuckDB
+    python -m lakehouse.trino_query --register       # register tables + gold schemas only (before dbt)
 """
 from __future__ import annotations
 
@@ -38,6 +39,9 @@ TABLE_LOCATIONS = {
 }
 
 
+GOLD_SCHEMAS = {"gold": "gold", "gold_staging": "gold_staging"}
+
+
 def connect() -> trino.dbapi.Connection:
     return trino.dbapi.connect(host=HOST, port=PORT, user="lakehouse", catalog=CATALOG, schema=SCHEMA)
 
@@ -51,6 +55,12 @@ def register(conn: trino.dbapi.Connection) -> list[str]:
     """Register every Delta table that exists on disk, plus current-state views."""
     cur = conn.cursor()
     _exec(cur, f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
+    # Schemas dbt writes the gold star schema into. They must exist, with their
+    # lake location, before dbt runs: dbt would otherwise create them itself
+    # with Trino's default location (inside the metastore directory).
+    for schema, rel in GOLD_SCHEMAS.items():
+        _exec(cur, f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{schema} "
+                   f"WITH (location = '{TRINO_LAKE_ROOT}/{rel}')")
     existing = {r[0] for r in _exec(cur, f"SHOW TABLES FROM {CATALOG}.{SCHEMA}")}
     registered = []
     for name, rel in TABLE_LOCATIONS.items():
@@ -121,6 +131,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("files", nargs="*")
     ap.add_argument("--sql")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--register", action="store_true", help="only register tables/schemas, then exit")
     ap.add_argument("--param", action="append", default=[], help="positional ? parameters, in order")
     args = ap.parse_args(argv)
 
@@ -135,6 +146,8 @@ def main(argv: list[str] | None = None) -> None:
 
     conn = connect()
     print("registered:", ", ".join(register(conn)))
+    if args.register:
+        return
     if args.sql:
         cur = conn.cursor()
         for r in _exec(cur, args.sql):

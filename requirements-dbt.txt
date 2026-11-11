@@ -1,0 +1,3 @@
+# dbt runs in its own venv (.venv-dbt) so its pins never fight pyspark's.
+dbt-core==1.8.10
+dbt-trino==1.8.5

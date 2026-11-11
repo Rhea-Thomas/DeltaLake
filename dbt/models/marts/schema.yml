@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: SCD2 customer dimension, one row per version, -1 = unknown member.
+    columns:
+      - name: customer_sk
+        tests: [unique, not_null]
+      - name: tier
+        tests:
+          - accepted_values: {values: ['free', 'standard', 'premium', 'unknown']}
+      - name: country
+        tests: [not_null]
+
+  - name: dim_product
+    description: Current-state product dimension, -1 = unknown member.
+    columns:
+      - name: product_sk
+        tests: [unique, not_null]
+      - name: product_id
+        tests:
+          - unique:
+              config: {where: "product_sk <> -1"}
+
+  - name: dim_date
+    columns:
+      - name: date_key
+        tests: [unique, not_null]
+
+  - name: dim_order_status
+    columns:
+      - name: status
+        tests: [unique, not_null]
+
+  - name: fct_orders
+    description: One row per live order, keyed to the customer version valid at order time.
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+      - name: customer_sk
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_customer'), field: customer_sk}
+      - name: product_sk
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_product'), field: product_sk}
+      - name: order_date_key
+        tests:
+          - not_null
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: status
+        tests:
+          - relationships: {to: ref('dim_order_status'), field: status}
+      - name: customer_match
+        tests:
+          - accepted_values: {values: ['as_of', 'earliest', 'unknown']}
+      - name: quantity
+        tests:
+          - dbt_expression_positive
+      - name: amount
+        tests: [not_null]
+
+  - name: fct_daily_sales
+    description: Daily sales by product and customer tier at order time.
+    tests:
+      - unique_combination:
+          columns: [order_date_key, product_sk, customer_tier_at_order]
+    columns:
+      - name: order_date_key
+        tests:
+          - relationships: {to: ref('dim_date'), field: date_key}
+      - name: product_sk
+        tests:
+          - relationships: {to: ref('dim_product'), field: product_sk}

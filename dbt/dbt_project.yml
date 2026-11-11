@@ -1,0 +1,28 @@
+name: lakehouse_gold
+version: "1.0.0"
+config-version: 2
+profile: lakehouse
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+# Gold tables are Delta tables written by Trino into lake/gold, next to bronze
+# and silver, so Spark and DuckDB can read them too. The gold schemas are
+# created with that location by `python -m lakehouse.trino_query --register`
+# (run by `make dbt` and by the Airflow DAG) before dbt starts.
+
+models:
+  lakehouse_gold:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +materialized: table
+      # Rebuild = DROP + CREATE TABLE AS. Trino's Delta connector cannot write
+      # into an existing table on a local file system, and a rename-swap would
+      # leave the data in a temp-named directory. The table is briefly absent
+      # during its rebuild; acceptable for marts rebuilt by a scheduled job.
+      +on_table_exists: drop

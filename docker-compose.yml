@@ -75,6 +75,11 @@ services:
       OFFSET_STORAGE_REPLICATION_FACTOR: 1
       STATUS_STORAGE_REPLICATION_FACTOR: 1
       OFFSET_FLUSH_INTERVAL_MS: 1000
+      # Incremental cooperative rebalancing holds a lost worker's tasks for this
+      # long before reassigning them (default 5 min). With one worker, that is
+      # how long Debezium stays UNASSIGNED after a Kafka outage. Found by the
+      # Kafka-broker failure-injection test.
+      CONNECT_SCHEDULED_REBALANCE_MAX_DELAY_MS: 10000
     ports:
       - "8083:8083"
     healthcheck:

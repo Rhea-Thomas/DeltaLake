@@ -1,0 +1,317 @@
+[
+  {
+    "scenario": "Spark driver killed",
+    "fault": "SIGKILL of the Spark app mid-stream, down 10 s",
+    "recovery": "restarted from checkpoints, first batch after 21s",
+    "ok": true,
+    "reconcile_s": 14.691741209000611,
+    "bronze_rows": 249723,
+    "duplicates": 67,
+    "failures": [],
+    "facts": {
+      "kafka_messages": 249723,
+      "bronze_rows": 249723,
+      "duplicate_change_events_absorbed": 67,
+      "customers": {
+        "source_rows": 12185,
+        "silver_live": 11922,
+        "silver_soft_deleted": 2902,
+        "matched_exactly": 11810,
+        "latest_change_quarantined": 375,
+        "quarantined_events": 1180
+      },
+      "products": {
+        "source_rows": 2983,
+        "silver_live": 2877,
+        "silver_soft_deleted": 0,
+        "matched_exactly": 2600,
+        "latest_change_quarantined": 383,
+        "quarantined_events": 7999
+      },
+      "orders": {
+        "source_rows": 36977,
+        "silver_live": 35834,
+        "silver_soft_deleted": 14884,
+        "matched_exactly": 35834,
+        "latest_change_quarantined": 1143,
+        "quarantined_events": 3362
+      },
+      "dim_customers_scd2": {
+        "versions": 43599,
+        "current": 11922,
+        "valid_customer_events": 43599
+      },
+      "quarantine_rows": 12541
+    }
+  },
+  {
+    "scenario": "crash before scd2",
+    "fault": "driver exits at `before_scd2` inside a batch",
+    "recovery": "same batch id replayed on restart",
+    "ok": true,
+    "reconcile_s": 15.170405041000777,
+    "bronze_rows": 254784,
+    "duplicates": 67,
+    "failures": [],
+    "facts": {
+      "kafka_messages": 254784,
+      "bronze_rows": 254784,
+      "duplicate_change_events_absorbed": 67,
+      "customers": {
+        "source_rows": 12457,
+        "silver_live": 12194,
+        "silver_soft_deleted": 2983,
+        "matched_exactly": 12080,
+        "latest_change_quarantined": 377,
+        "quarantined_events": 1202
+      },
+      "products": {
+        "source_rows": 3046,
+        "silver_live": 2935,
+        "silver_soft_deleted": 0,
+        "matched_exactly": 2650,
+        "latest_change_quarantined": 396,
+        "quarantined_events": 8202
+      },
+      "orders": {
+        "source_rows": 37727,
+        "silver_live": 36576,
+        "silver_soft_deleted": 15376,
+        "matched_exactly": 36576,
+        "latest_change_quarantined": 1151,
+        "quarantined_events": 3394
+      },
+      "dim_customers_scd2": {
+        "versions": 44644,
+        "current": 12194,
+        "valid_customer_events": 44644
+      },
+      "quarantine_rows": 12798
+    }
+  },
+  {
+    "scenario": "crash after silver",
+    "fault": "driver exits at `after_silver` inside a batch",
+    "recovery": "same batch id replayed on restart",
+    "ok": true,
+    "reconcile_s": 16.305219833000592,
+    "bronze_rows": 259781,
+    "duplicates": 67,
+    "failures": [],
+    "facts": {
+      "kafka_messages": 259781,
+      "bronze_rows": 259781,
+      "duplicate_change_events_absorbed": 67,
+      "customers": {
+        "source_rows": 12751,
+        "silver_live": 12483,
+        "silver_soft_deleted": 3045,
+        "matched_exactly": 12362,
+        "latest_change_quarantined": 389,
+        "quarantined_events": 1236
+      },
+      "products": {
+        "source_rows": 3110,
+        "silver_live": 2997,
+        "silver_soft_deleted": 0,
+        "matched_exactly": 2711,
+        "latest_change_quarantined": 399,
+        "quarantined_events": 8420
+      },
+      "orders": {
+        "source_rows": 38654,
+        "silver_live": 37487,
+        "silver_soft_deleted": 15737,
+        "matched_exactly": 37487,
+        "latest_change_quarantined": 1167,
+        "quarantined_events": 3437
+      },
+      "dim_customers_scd2": {
+        "versions": 45683,
+        "current": 12483,
+        "valid_customer_events": 45683
+      },
+      "quarantine_rows": 13093
+    }
+  },
+  {
+    "scenario": "crash after quarantine",
+    "fault": "driver exits at `after_quarantine` inside a batch",
+    "recovery": "same batch id replayed on restart",
+    "ok": true,
+    "reconcile_s": 15.503902249998646,
+    "bronze_rows": 264841,
+    "duplicates": 67,
+    "failures": [],
+    "facts": {
+      "kafka_messages": 264841,
+      "bronze_rows": 264841,
+      "duplicate_change_events_absorbed": 67,
+      "customers": {
+        "source_rows": 13028,
+        "silver_live": 12757,
+        "silver_soft_deleted": 3124,
+        "matched_exactly": 12636,
+        "latest_change_quarantined": 392,
+        "quarantined_events": 1268
+      },
+      "products": {
+        "source_rows": 3190,
+        "silver_live": 3074,
+        "silver_soft_deleted": 0,
+        "matched_exactly": 2781,
+        "latest_change_quarantined": 409,
+        "quarantined_events": 8637
+      },
+      "orders": {
+        "source_rows": 39395,
+        "silver_live": 38199,
+        "silver_soft_deleted": 16239,
+        "matched_exactly": 38199,
+        "latest_change_quarantined": 1196,
+        "quarantined_events": 3487
+      },
+      "dim_customers_scd2": {
+        "versions": 46711,
+        "current": 12757,
+        "valid_customer_events": 46711
+      },
+      "quarantine_rows": 13392
+    }
+  },
+  {
+    "scenario": "Kafka broker killed",
+    "fault": "SIGKILL of the broker, down 25 s",
+    "recovery": "broker restarted; Debezium RUNNING after 8s; Spark Kafka source retried in place",
+    "ok": true,
+    "reconcile_s": 14.872800625002128,
+    "bronze_rows": 272724,
+    "duplicates": 67,
+    "failures": [],
+    "facts": {
+      "kafka_messages": 272724,
+      "bronze_rows": 272724,
+      "duplicate_change_events_absorbed": 67,
+      "customers": {
+        "source_rows": 13481,
+        "silver_live": 13202,
+        "silver_soft_deleted": 3232,
+        "matched_exactly": 13080,
+        "latest_change_quarantined": 401,
+        "quarantined_events": 1315
+      },
+      "products": {
+        "source_rows": 3298,
+        "silver_live": 3181,
+        "silver_soft_deleted": 0,
+        "matched_exactly": 2870,
+        "latest_change_quarantined": 428,
+        "quarantined_events": 8982
+      },
+      "orders": {
+        "source_rows": 40650,
+        "silver_live": 39412,
+        "silver_soft_deleted": 16951,
+        "matched_exactly": 39412,
+        "latest_change_quarantined": 1238,
+        "quarantined_events": 3558
+      },
+      "dim_customers_scd2": {
+        "versions": 48360,
+        "current": 13202,
+        "valid_customer_events": 48360
+      },
+      "quarantine_rows": 13855
+    }
+  },
+  {
+    "scenario": "Kafka Connect killed",
+    "fault": "SIGKILL of Connect/Debezium, down 15 s",
+    "recovery": "connector resumed from stored offsets, RUNNING after 0s",
+    "ok": true,
+    "reconcile_s": 15.588837582999986,
+    "bronze_rows": 279547,
+    "duplicates": 250,
+    "failures": [],
+    "facts": {
+      "kafka_messages": 279547,
+      "bronze_rows": 279547,
+      "duplicate_change_events_absorbed": 250,
+      "customers": {
+        "source_rows": 13840,
+        "silver_live": 13555,
+        "silver_soft_deleted": 3332,
+        "matched_exactly": 13428,
+        "latest_change_quarantined": 412,
+        "quarantined_events": 1352
+      },
+      "products": {
+        "source_rows": 3394,
+        "silver_live": 3272,
+        "silver_soft_deleted": 0,
+        "matched_exactly": 2953,
+        "latest_change_quarantined": 441,
+        "quarantined_events": 9309
+      },
+      "orders": {
+        "source_rows": 41789,
+        "silver_live": 40498,
+        "silver_soft_deleted": 17463,
+        "matched_exactly": 40498,
+        "latest_change_quarantined": 1291,
+        "quarantined_events": 3632
+      },
+      "dim_customers_scd2": {
+        "versions": 49739,
+        "current": 13555,
+        "valid_customer_events": 49739
+      },
+      "quarantine_rows": 14293
+    }
+  },
+  {
+    "scenario": "Postgres crashed",
+    "fault": "SIGKILL of Postgres between two load phases, down 10 s",
+    "recovery": "crash recovery; Debezium state RUNNING/RUNNING after 0s",
+    "ok": true,
+    "reconcile_s": 16.05837758299822,
+    "bronze_rows": 285031,
+    "duplicates": 250,
+    "failures": [],
+    "facts": {
+      "kafka_messages": 285031,
+      "bronze_rows": 285031,
+      "duplicate_change_events_absorbed": 250,
+      "customers": {
+        "source_rows": 14158,
+        "silver_live": 13854,
+        "silver_soft_deleted": 3396,
+        "matched_exactly": 13720,
+        "latest_change_quarantined": 438,
+        "quarantined_events": 1403
+      },
+      "products": {
+        "source_rows": 3494,
+        "silver_live": 3370,
+        "silver_soft_deleted": 0,
+        "matched_exactly": 3042,
+        "latest_change_quarantined": 452,
+        "quarantined_events": 9542
+      },
+      "orders": {
+        "source_rows": 42770,
+        "silver_live": 41447,
+        "silver_soft_deleted": 17853,
+        "matched_exactly": 41447,
+        "latest_change_quarantined": 1323,
+        "quarantined_events": 3684
+      },
+      "dim_customers_scd2": {
+        "versions": 50892,
+        "current": 13854,
+        "valid_customer_events": 50892
+      },
+      "quarantine_rows": 14629
+    }
+  }
+]

@@ -82,7 +82,12 @@ def reconcile_once(pg: psycopg.Connection) -> Report:
     bronze_n, bronze_distinct = con.execute(
         "SELECT count(*), count(DISTINCT (topic, \"partition\", \"offset\")) FROM bronze_cdc_events"
     ).fetchone()
-    r.facts.update(kafka_messages=kafka_n, bronze_rows=bronze_n)
+    # Same change delivered more than once (Debezium is at-least-once, e.g. after
+    # a Connect crash). Informational: these must be absorbed, not fail the check.
+    dup_changes = con.execute("""
+        SELECT count(*) - count(DISTINCT (source_table, key, lsn)) FROM bronze_cdc_events
+    """).fetchone()[0]
+    r.facts.update(kafka_messages=kafka_n, bronze_rows=bronze_n, duplicate_change_events_absorbed=dup_changes)
     r.check(bronze_n == bronze_distinct, f"bronze has {bronze_n - bronze_distinct} duplicate Kafka offsets")
     r.check(bronze_n == kafka_n, f"bronze rows {bronze_n} != Kafka messages {kafka_n}")
 

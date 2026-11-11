@@ -58,6 +58,9 @@ test: ## unit tests (no Docker needed)
 e2e: ## end-to-end reconciliation test (needs `make up` + `make stream` running)
 	E2E=1 $(PY) -m pytest tests/e2e -q -s
 
+failure: ## failure-injection tests (needs `make up`; stop `make stream` first) -> reports/FAILURE_TESTS.md
+	FAILURE_TESTS=1 $(PY) -m pytest tests/failure -v -s
+
 demo: up ## everything: infra, pipeline in background, workload, reconcile, queries
 	./scripts/demo.sh
 

@@ -16,3 +16,4 @@ build/
 .venv-dbt/
 .venv-airflow/
 airflow/airflow-home/
+export/

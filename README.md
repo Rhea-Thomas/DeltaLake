@@ -207,6 +207,7 @@ make airflow-test # DAG integrity tests + run the hourly DAG once
 make airflow     # Airflow UI + scheduler on http://localhost:8081
 make health      # service health + pipeline lag (Kafka→bronze, bronze→silver)
 make maintenance # OPTIMIZE / Z-ORDER every Delta table
+make export-databricks # package change events + snapshot for Databricks Free Edition
 make failure     # failure-injection suite (stop `make stream` first), ~10 min
 make demo        # up + pipeline in background + workload + reconcile + queries
 make clean       # stop containers, delete volumes and the local lake
@@ -347,12 +348,15 @@ with the expected task graph.
   cannot resurrect it.
 * **Bronze is raw text**, so it never fails on bad data and can be replayed
   into silver after a rule change.
-* **Databricks**: [`databricks.yml`](databricks.yml) is an Asset Bundle that
-  builds the package as a wheel and runs the same pipeline as a continuous job
-  on DBR 15.4 LTS (Spark 3.5). `get_spark()` uses the cluster session there,
-  and Kafka auth options come from `KAFKA_OPTIONS_JSON`. **This bundle has not
-  been deployed**: it needs a workspace and a Kafka the workspace can reach.
-  See [`databricks/README.md`](databricks/README.md).
+* **Databricks**: [`databricks/`](databricks/README.md) has two routes.
+  - **Free Edition** (serverless, no cost): notebooks run the same pipeline over
+    change events exported from the local stack, with
+    `TRIGGER_MODE=available_now` and `BRONZE_SOURCE=files`, then reconcile
+    exactly against a Postgres snapshot. Tested locally in that exact mode:
+    539,863 events, exact match.
+  - **Paid workspace**: an Asset Bundle reading Kafka in a continuous job.
+
+  Neither has been run on Databricks itself yet.
 
 ## Limitations
 
@@ -381,7 +385,8 @@ with the expected task graph.
 * **Failure tests show recovery, not high availability.** With one broker and
   one Connect worker every fault is an outage, and recovery is what is tested.
   Network partitions, full disks and slow consumers are not covered.
-* **Databricks is defined, not run** (see above).
+* **Databricks is prepared, not run.** Both routes are written, and the Free
+  Edition mode was exercised locally (see above).
 * **Latency mixes two clocks** (Postgres VM vs host). The skew was measured and
   is ≤5 ms.
 

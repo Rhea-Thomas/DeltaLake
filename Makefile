@@ -6,7 +6,7 @@ export PYTHONPATH := src
 export JAVA_HOME ?= $(shell /usr/libexec/java_home -v 17 2>/dev/null || echo /opt/homebrew/opt/openjdk@17)
 export PATH := $(JAVA_HOME)/bin:$(PATH)
 
-.PHONY: help up venv infra seed connector stream generate query trino-query trino-check dbt dbt-venv airflow-venv airflow-test airflow health maintenance reconcile measure test e2e failure demo down clean
+.PHONY: help up venv infra seed connector stream generate query trino-query trino-check dbt dbt-venv airflow-venv airflow-test airflow health maintenance export-databricks reconcile measure test e2e failure demo down clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-11s %s\n", $$1, $$2}'
@@ -79,6 +79,9 @@ health: ## service health and pipeline lag
 
 maintenance: ## compact + Z-order all Delta tables (the daily DAG also vacuums)
 	$(PY) -m lakehouse.maintenance optimize
+
+export-databricks: ## export change events + Postgres snapshot as files for Databricks Free Edition (incremental)
+	$(PY) -m lakehouse.export_for_databricks
 
 reconcile: ## check Delta tables against source Postgres
 	$(PY) -m lakehouse.reconcile

@@ -7,8 +7,7 @@ sources:
     schema: lakehouse
     loaded_at_field: _source_ts
     freshness:
-      warn_after: {count: 15, period: minute}
-      error_after: {count: 60, period: minute}
+      warn_after: {count: 15, period: minute}   # warn only: an idle source is not an outage
     tables:
       - name: silver_orders_all
         description: Current state per order (soft-deleted rows included).

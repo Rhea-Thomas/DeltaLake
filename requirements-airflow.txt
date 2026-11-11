@@ -1,0 +1,5 @@
+# Airflow runs in its own venv (.venv-airflow), installed with the official
+# constraints file:
+#   pip install -r requirements-airflow.txt \
+#     --constraint https://raw.githubusercontent.com/apache/airflow/constraints-2.10.3/constraints-3.11.txt
+apache-airflow==2.10.3

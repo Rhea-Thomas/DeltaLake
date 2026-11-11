@@ -6,7 +6,7 @@ export PYTHONPATH := src
 export JAVA_HOME ?= $(shell /usr/libexec/java_home -v 17 2>/dev/null || echo /opt/homebrew/opt/openjdk@17)
 export PATH := $(JAVA_HOME)/bin:$(PATH)
 
-.PHONY: help up venv infra seed connector stream generate query trino-query trino-check dbt dbt-venv reconcile measure test e2e failure demo down clean
+.PHONY: help up venv infra seed connector stream generate query trino-query trino-check dbt dbt-venv airflow-venv airflow-test airflow health maintenance reconcile measure test e2e failure demo down clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-11s %s\n", $$1, $$2}'
@@ -55,6 +55,30 @@ dbt-venv: .venv-dbt/.installed
 dbt: dbt-venv ## build the gold star schema with dbt on Trino and run all dbt tests
 	$(PY) -m lakehouse.trino_query --register
 	cd dbt && ../.venv-dbt/bin/dbt build --profiles-dir .
+
+AIRFLOW_ENV := AIRFLOW_HOME=$(CURDIR)/airflow/airflow-home AIRFLOW__CORE__DAGS_FOLDER=$(CURDIR)/airflow/dags AIRFLOW__CORE__LOAD_EXAMPLES=False
+AIRFLOW_CONSTRAINTS := https://raw.githubusercontent.com/apache/airflow/constraints-2.10.3/constraints-3.11.txt
+
+airflow-venv: .venv-airflow/.installed
+.venv-airflow/.installed: requirements-airflow.txt
+	python3.11 -m venv .venv-airflow
+	.venv-airflow/bin/pip install -q -r requirements-airflow.txt pytest --constraint $(AIRFLOW_CONSTRAINTS)
+	$(AIRFLOW_ENV) .venv-airflow/bin/airflow db migrate > /dev/null
+	touch $@
+
+airflow-test: airflow-venv ## DAG integrity tests + execute the hourly DAG once (airflow dags test)
+	$(AIRFLOW_ENV) .venv-airflow/bin/python -m pytest tests/dags -q
+	$(AIRFLOW_ENV) .venv-airflow/bin/airflow dags test lakehouse_hourly
+
+airflow: airflow-venv ## Airflow UI + scheduler on http://localhost:8081 (Ctrl-C to stop)
+	$(AIRFLOW_ENV) AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8081 .venv-airflow/bin/airflow standalone
+
+health: ## service health and pipeline lag
+	$(PY) -m lakehouse.health services
+	$(PY) -m lakehouse.health lag
+
+maintenance: ## compact + Z-order all Delta tables (the daily DAG also vacuums)
+	$(PY) -m lakehouse.maintenance optimize
 
 reconcile: ## check Delta tables against source Postgres
 	$(PY) -m lakehouse.reconcile

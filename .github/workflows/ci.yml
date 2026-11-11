@@ -26,3 +26,27 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Unit tests (data quality, silver merge, SCD2) - no Docker
         run: pytest tests/unit -q
+
+  orchestration:
+    # Airflow DAGs import cleanly with the expected graph; dbt project parses.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Airflow (official constraints) and dbt
+        run: |
+          pip install -r requirements-airflow.txt pytest \
+            --constraint https://raw.githubusercontent.com/apache/airflow/constraints-2.10.3/constraints-3.11.txt
+          python -m venv /tmp/dbt && /tmp/dbt/bin/pip install -r requirements-dbt.txt
+      - name: DAG integrity tests
+        env:
+          AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+        run: |
+          airflow db migrate > /dev/null
+          pytest tests/dags -q
+      - name: dbt parse
+        working-directory: dbt
+        run: /tmp/dbt/bin/dbt parse --profiles-dir .
